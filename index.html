@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="hu"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Jelenléti & Tankolás</title><link rel="manifest" href="manifest.json"><meta name="theme-color" content="#1e5a3a"><link rel="icon" href="icon.svg">
+<style>
+*{box-sizing:border-box}body{margin:0;font:15px system-ui,sans-serif;background:#0d0f0e;color:#e6ece8}
+#app{display:flex;min-height:100vh}
+nav{width:190px;background:#161a18;padding:14px;display:flex;flex-direction:column;gap:8px;border-right:1px solid #2a2f2c}
+nav b{color:#4caf7a;margin-bottom:10px}
+button,select,input{font:inherit;color:inherit;background:#23282a;border:1px solid #3a413d;border-radius:8px;padding:8px 10px}
+option{background:#23282a}
+button{cursor:pointer;background:#1e5a3a;border-color:#2e7d4f}button.g{background:#23282a;border-color:#3a413d}button.r{background:#6b2020;border-color:#8a2d2d}
+main{flex:1;padding:18px;overflow:auto;min-width:0}
+.card{background:#1b1f1d;border:1px solid #2a2f2c;border-radius:12px;padding:14px;margin-bottom:12px}
+.card input:not([type=checkbox]){width:100%}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.row input,.row select{width:auto!important}
+.big{display:grid;grid-template-columns:1fr 1fr;gap:14px}.big button{padding:40px 10px;font-size:20px}
+.fab{position:fixed;right:20px;bottom:80px;border-radius:50%;width:56px;height:56px;font-size:28px;padding:0}
+.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:640px}
+td,th{border:1px solid #3a413d;padding:2px;text-align:center;font-size:13px}th{background:#1e5a3a}
+td input,td select{width:100%;padding:4px;border:0;background:transparent;font-size:13px}
+canvas{background:#fff;border-radius:8px;width:100%;max-width:400px;touch-action:none}
+@media(max-width:700px){#app{flex-direction:column-reverse}nav{width:auto;flex-direction:row;justify-content:space-around;border-right:0;border-top:1px solid #2a2f2c}nav b{display:none}.fab{bottom:90px}}
+</style></head><body><div id="app"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script>
+const $=s=>document.querySelector(s),LS=localStorage,p2=n=>String(n).padStart(2,'0');
+const MON=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+const T=[''];for(let h=0;h<24;h++)for(let m=0;m<60;m+=5)T.push(p2(h)+':'+p2(m));
+const TO=T.map(v=>[v,v||'–']),PA=[['','–'],[1,1],[2,2],[3,3],[4,4],[5,5]],ST=[['','–'],['K','K'],['U','U']],
+MO=MON.map((x,i)=>[i,x]),YR=[...Array(12)].map((_,i)=>[2024+i,2024+i]);
+let cur=LS.vd_cur,D,S,V='home',NT='p',tmr;
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const opts=(a,s)=>a.map(([v,t])=>`<option value="${v}"${v==s?' selected':''}>${t}</option>`).join('');
+const rid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,10);
+const blank=()=>({id:rid(),name:'',routes:[],lkw:[],kenn:[],sheets:[],sig:''});
+const save=()=>LS['vd_d_'+cur]=JSON.stringify(D);
+const mi=t=>{const[h,m]=t.split(':');return h*60+ +m};
+const dur=w=>(!w||!w.b||!w.e)?null:Math.max(0,(mi(w.e)-mi(w.b)+1440)%1440-(+w.p||0)*60);
+const fmt=m=>m==null?'':Math.floor(m/60)+':'+p2(m%60);
+const tot=s=>{let t=0;for(const k in s.rows)t+=dur(s.rows[k])||0;return t};
+const uid=()=>D.id,fn=s=>(s.t=='p'?'jelenleti':'tankolas')+'_'+s.y+'-'+p2(s.m+1);
+const b64=d=>d.output('datauristring').split(',')[1];
+const dl=k=>D[k].map(x=>`<option value="${esc(x)}">`).join('');
+
+async function hash(p){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(p));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+function login(){$('#app').innerHTML=`<main style="max-width:380px;margin:auto"><div class="card"><h2 style="color:#4caf7a">Jelenléti & Tankolás</h2><p><input id="u" placeholder="Felhasználónév"></p><p><input id="p" type="password" placeholder="Jelszó"></p><div class="row"><button onclick="auth(0)">Belépés</button><button class="g" onclick="auth(1)">Regisztráció</button></div></div></main>`}
+async function auth(reg){const u=$('#u').value.trim(),p=$('#p').value;if(!u||!p)return alert('Töltsd ki mindkét mezőt');
+ const U=JSON.parse(LS.vd_users||'{}'),h=await hash(p);
+ if(reg){if(U[u])return alert('Ez a felhasználónév már létezik');U[u]=h;LS.vd_users=JSON.stringify(U);LS['vd_d_'+u]=JSON.stringify(blank())}
+ else if(U[u]!==h)return alert('Hibás felhasználónév vagy jelszó');
+ start(u)}
+function start(u){cur=u;LS.vd_cur=u;D=JSON.parse(LS['vd_d_'+u]);if(!D.id){D.id=rid();save()}V='home';draw()}
+function logout(){LS.removeItem('vd_cur');cur=null;D=S=null;draw()}
+function go(v){V=v;draw()}
+
+function draw(){if(!cur)return login();
+ const c=V=='e'?S.t:V=='n'?NT:V;
+ $('#app').innerHTML=`<nav><b>Jelenléti & Tankolás</b>${[['home','Kezdőlap'],['p','Jelenléti'],['t','Tankolás'],['prof','Profil']].map(([k,t])=>`<button class="${c==k?'':'g'}" onclick="go('${k}')">${t}</button>`).join('')}<button class="g" onclick="logout()">Kilépés</button></nav><main>${V=='home'?home():V=='p'||V=='t'?list(V):V=='n'?nv():V=='e'?edit():prof()}</main>`;
+ if(V=='e')initSig()}
+const home=()=>`<h2>Szia${D.name?', '+esc(D.name):''}!</h2><div class="big"><button onclick="go('p')">Jelenléti</button><button onclick="go('t')">Tankolás</button></div>`;
+function list(t){const a=D.sheets.filter(s=>s.t==t).sort((a,b)=>b.y*12+b.m-a.y*12-a.m);
+ return `<h2>${t=='p'?'Jelenléti ívek':'Tankolási ívek'}</h2>${a.map(s=>`<div class="card row" style="justify-content:space-between"><span>${MON[s.m]} ${s.y}</span><span><button onclick="op(${s.id})">Megnyitás</button> <button class="r" onclick="rm(${s.id})">✕</button></span></div>`).join('')||'<i>Még nincs ív</i>'}<button class="fab" onclick="NT='${t}';go('n')">+</button>`}
+function op(id){S=D.sheets.find(s=>s.id==id);go('e')}
+function rm(id){if(!confirm('Törlöd az ívet?'))return;D.sheets=D.sheets.filter(s=>s.id!=id);save();draw()}
+const nv=()=>{const n=new Date();return `<h2>Új ív</h2><div class="card row"><select id="nm">${opts(MO,n.getMonth())}</select><select id="ny">${opts(YR,n.getFullYear())}</select><button onclick="mkNew()">Létrehozás</button><button class="g" onclick="go('${NT}')">Mégse</button></div>`};
+function mkNew(){const m=+$('#nm').value,y=+$('#ny').value;
+ S=D.sheets.find(s=>s.t==NT&&s.m==m&&s.y==y);
+ if(!S){S={id:Date.now(),t:NT,y,m,name:D.name,rows:{},sig:D.sig||''};D.sheets.push(S);save()}
+ go('e')}
+
+const I=(d,f,w,l)=>`<td><input data-d="${d}" data-f="${f}" value="${esc(w[f])}"${l?` list="dl-${f}"`:''}></td>`;
+const Sl=(d,f,w,o)=>`<td><select data-d="${d}" data-f="${f}">${opts(o,w[f]||'')}</select></td>`;
+function edit(){const f=S.t=='t';let r='';
+ for(let d=1;d<=31;d++){const x=S.rows[d]||{};
+  r+=`<tr><td>${d}</td>`+(f?I(d,'l',x,1)+I(d,'n',x,1)+I(d,'k',x)+I(d,'i',x)+I(d,'a',x)
+   :Sl(d,'b',x,TO)+Sl(d,'e',x,TO)+Sl(d,'p',x,PA)+`<td id="du${d}">${fmt(dur(x))}</td>`+Sl(d,'x',x,ST)+I(d,'r',x,1)+I(d,'s',x))+'</tr>'}
+ const H=f?['Nr.','TOUR/LKW NUMMER','Kennzeichen','Km Stand','Liter','AdBlue']:['Tag','Beginn (Uhrzeit)','Ende (Uhrzeit)','Pause','Dauer','*','Reiseweg','Spesen €'];
+ return `<datalist id="dl-r">${dl('routes')}</datalist><datalist id="dl-l">${dl('lkw')}</datalist><datalist id="dl-n">${dl('kenn')}</datalist>
+ <div class="card row"><b>${f?'Tankolás':'E&V GmbH'}</b><label>NAME <input id="nm" value="${esc(S.name)}"></label><label>MONAT <select id="sm">${opts(MO,S.m)}</select></label><label>JAHR <select id="sy">${opts(YR,S.y)}</select></label></div>
+ <div class="wrap card"><table><tr>${H.map(h=>`<th>${h}</th>`).join('')}</tr>${r}</table></div>
+ ${f?'':`<div class="card">Summe: <b id="tot">${fmt(tot(S))}</b> &nbsp; <small>* K = Krank, U = Urlaub</small></div>`}
+ <div class="card">Unterschrift des Arbeitnehmers:<br><canvas id="sg"></canvas><br><br><button class="g" onclick="clearSig()">Aláírás törlése</button></div>
+ <div class="card row"><button onclick="mk(S).save(fn(S)+'.pdf')">PDF letöltés</button><button class="g" onclick="go('${S.t}')">Vissza</button></div>`}
+
+document.addEventListener('change',ev=>{const t=ev.target;if(!S||V!='e')return;
+ if(t.id=='sm')S.m=+t.value;else if(t.id=='sy')S.y=+t.value;else if(t.id=='nm')S.name=t.value;
+ else if(t.dataset.d){const d=t.dataset.d,f=t.dataset.f,v=t.value.trim();(S.rows[d]=S.rows[d]||{})[f]=v;
+  const L={r:'routes',l:'lkw',n:'kenn'}[f];
+  if(L&&v&&!D[L].includes(v)){D[L].push(v);$('#dl-'+f).innerHTML=dl(L)}
+  if('bep'.includes(f)){$('#du'+d).textContent=fmt(dur(S.rows[d]));const o=$('#tot');if(o)o.textContent=fmt(tot(S))}}
+ else return;
+ touch()});
+function touch(){save()}
+
+function initSig(){const c=$('#sg'),x=c.getContext('2d');c.width=400;c.height=130;x.lineWidth=2.5;x.lineCap='round';x.strokeStyle='#000';
+ if(S.sig){const i=new Image();i.onload=()=>x.drawImage(i,0,0);i.src=S.sig}
+ let dn=0;const pt=e=>{const r=c.getBoundingClientRect();return[(e.clientX-r.left)*c.width/r.width,(e.clientY-r.top)*c.height/r.height]};
+ c.onpointerdown=e=>{dn=1;c.setPointerCapture(e.pointerId);x.beginPath();x.moveTo(...pt(e))};
+ c.onpointermove=e=>{if(dn){x.lineTo(...pt(e));x.stroke()}};
+ c.onpointerup=()=>{dn=0;S.sig=D.sig=c.toDataURL();touch()}}
+function clearSig(){const c=$('#sg');c.getContext('2d').clearRect(0,0,c.width,c.height);S.sig='';touch()}
+
+function mk(s){const{jsPDF}=window.jspdf,d=new jsPDF(),f=s.t=='t',A=x=>String(x??'').replace(/ő/g,'ö').replace(/ű/g,'ü').replace(/Ő/g,'Ö').replace(/Ű/g,'Ü');
+ d.setFont('helvetica','bold').setFontSize(10);d.rect(15,12,180,12);
+ if(!f)d.text('E&V GmbH',18,19);
+ d.text('NAME: '+A(s.name),f?18:55,19);d.text('MONAT/JAHR: '+MON[s.m]+' '+s.y,192,19,{align:'right'});
+ const rows=[];for(let i=1;i<=31;i++){const w=s.rows[i]||{};
+  rows.push(f?[i,w.l||'',w.n||'',w.k||'',w.i||'',w.a||'']:[i,w.b||'',w.e||'',w.p||'',fmt(dur(w)),w.x||'',A(w.r),w.s||''])}
+ d.autoTable({startY:26,margin:{left:15,right:15},theme:'grid',
+  head:[f?['Nr.','TOUR/LKW NUMMER','Kennzeichen','Km Stand','Liter','AdBlue']:['Tag','Beginn (Uhrzeit)','Ende (Uhrzeit)','Pause','Dauer','*','Reiseweg','Spesen €']],body:rows,
+  styles:{fontSize:8,cellPadding:1,lineColor:0,lineWidth:.2,textColor:0,halign:'center',minCellHeight:5.5},headStyles:{fillColor:255,textColor:0,fontStyle:'bold'}});
+ let y=d.lastAutoTable.finalY+7;
+ if(!f){d.setFontSize(9).text('Summe: '+fmt(tot(s)),15,y);d.setFont('helvetica','normal').setFontSize(7).text('* K= Krank  U=Urlaub',70,y);y+=8}
+ d.setFont('helvetica','bold').setFontSize(9).text('Unterschrift des Arbeitnehmers:',15,y);
+ if(s.sig)d.addImage(s.sig,'PNG',15,y+2,50,16);
+ return d}
+
+
+function prof(){
+ return `<h2>Profil</h2><div class="card"><label>Teljes név<br><input value="${esc(D.name)}" onchange="D.name=this.value.trim();save()"></label></div>
+ ${[['routes','Mentett útvonalak'],['lkw','Mentett LKW számok'],['kenn','Mentett Kennzeichen']].map(([k,t])=>`<div class="card"><h3>${t}</h3>${D[k].map((x,i)=>`<div class="row" style="justify-content:space-between;margin:4px 0">${esc(x)}<button class="r" onclick="del('${k}',${i})">✕</button></div>`).join('')||'<i>üres</i>'}</div>`).join('')}`}
+function del(k,i){D[k].splice(i,1);save();draw()}
+
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+if(cur&&LS['vd_d_'+cur])start(cur);else{cur=null;draw()}
+</script></body></html>
