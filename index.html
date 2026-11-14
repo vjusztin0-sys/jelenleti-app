@@ -33,14 +33,41 @@ const MON=['Januar','Februar','März','April','Mai','Juni','Juli','August','Sept
 const T=[''];for(let h=0;h<24;h++)for(let m=0;m<60;m+=5)T.push(p2(h)+':'+p2(m));
 const TO=T.map(v=>[v,v||'–']),PA=[['','–'],['0','0'],['1','1']],ST=[['','–'],['K','K'],['U','U']],
 MO=MON.map((x,i)=>[i,x]),YR=[...Array(12)].map((_,i)=>[2024+i,2024+i]);
-let cur=LS.vd_cur,D,S,V='home',NT='p',tmr,st;
+let cur=LS.vd_cur,D,S,V='home',NT='p',tmr,st,base=null,ch=null;
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const opts=(a,s)=>a.map(([v,t])=>`<option value="${v}"${v==s?' selected':''}>${t}</option>`).join('');
 const rid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,10);
 const blank=()=>({id:rid(),name:'',routes:[],lkw:[],kenn:[],sheets:[],sig:''});
-function save(){LS['vd_d_'+cur]=JSON.stringify(D);clearTimeout(st);
- st=setTimeout(async()=>{try{const{data:{user}}=await sb.auth.getUser();
-  if(user)await sb.from('vd_data').upsert({user_id:user.id,data:D,updated_at:new Date()})}catch(e){}},800)}
+const sk=x=>x.t+'-'+x.y+'-'+x.m;
+const fp=d=>JSON.stringify([(d.sheets||[]).map(x=>sk(x)+':'+(x.ts||0)).sort(),d.del||{},d.lt||0,d.name,d.sig?1:0,d.routes,d.lkw,d.kenn]);
+function merge(c,l){
+ const del={};for(const o of[c.del||{},l.del||{}])for(const k in o)del[k]=Math.max(del[k]||0,o[k]);
+ const m={};for(const x of[...(c.sheets||[]),...(l.sheets||[])]){const k=sk(x);if(!m[k]||(x.ts||0)>=(m[k].ts||0))m[k]=x}
+ const sheets=Object.values(m).filter(x=>del[sk(x)]===undefined||(x.ts||0)>del[sk(x)]);
+ const u=(a,b)=>[...new Set([...(a||[]),...(b||[])])],cl=c.lt||0,ll=l.lt||0;
+ const li=k=>cl===ll?u(c[k],l[k]):(ll>cl?l[k]:c[k])||[];
+ return{...c,...l,id:l.id||c.id,name:l.name||c.name,sig:l.sig||c.sig,routes:li('routes'),lkw:li('lkw'),kenn:li('kenn'),lt:Math.max(cl,ll),sheets,del}}
+function relink(){if(!S)return;const n=D.sheets.find(x=>sk(x)==sk(S));if(n)S=n;else{S=null;if(V=='e')V='home'}}
+function save(){LS['vd_d_'+cur]=JSON.stringify(D);clearTimeout(st);st=setTimeout(push,800)}
+async function cloud(){const{data:{user}}=await sb.auth.getUser();if(!user)return null;
+ const{data:row,error}=await sb.from('vd_data').select('data,updated_at').eq('user_id',user.id).maybeSingle();
+ return error?null:{user,row}}
+async function push(){if(!cur||!D)return;
+ try{const r=await cloud();if(!r)return;
+  if(r.row&&Date.parse(r.row.updated_at)!==base){D=merge(r.row.data,D);relink()}
+  const ts=Date.now();
+  const{error}=await sb.from('vd_data').upsert({user_id:r.user.id,data:D,updated_at:new Date(ts).toISOString()});
+  if(!error){base=ts;LS['vd_d_'+cur]=JSON.stringify(D)}}catch(e){}}
+async function pull(){if(!cur||!D)return;
+ try{const r=await cloud();if(!r||!r.row)return;
+  const t=Date.parse(r.row.updated_at);if(t===base)return;
+  const before=fp(D);D=merge(r.row.data,D);base=t;relink();LS['vd_d_'+cur]=JSON.stringify(D);
+  if(fp(D)===before)return;
+  const a=document.activeElement;if(V!='e'||!a||!/INPUT|SELECT/.test(a.tagName))draw()}catch(e){}}
+function listen(){try{ch=sb.channel('vd').on('postgres_changes',{event:'*',schema:'public',table:'vd_data'},()=>pull()).subscribe()}catch(e){}}
+setInterval(()=>{if(!document.hidden)pull()},20000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)pull()});
+window.addEventListener('focus',pull);
 const mi=t=>{const[h,m]=t.split(':');return h*60+ +m};
 const dur=w=>(!w||!w.b||!w.e)?null:Math.max(0,(mi(w.e)-mi(w.b)+1440)%1440-(+w.p||0)*60);
 const fmt=m=>m==null?'':Math.floor(m/60)+':'+p2(m%60);
@@ -55,16 +82,15 @@ async function auth(reg){const u=$('#u').value.trim(),p=$('#p').value;
  const r=reg?await sb.auth.signUp({email:mail(u),password:p}):await sb.auth.signInWithPassword({email:mail(u),password:p});
  if(r.error)return alert(r.error.message);
  await load(u)}
-async function load(u){const{data:{user}}=await sb.auth.getUser();
- if(!user)return alert('Sikertelen belépés');
- const{data:row,error}=await sb.from('vd_data').select('data').eq('user_id',user.id).maybeSingle();
+async function load(u){const r=await cloud();
+ if(!r)return alert('Sikertelen belépés vagy nincs kapcsolat');
  cur=u;LS.vd_cur=u;
- if(!error&&row?.data?.sheets)D=row.data;
- else D=LS['vd_d_'+u]?JSON.parse(LS['vd_d_'+u]):blank();
+ const loc=LS['vd_d_'+u]?JSON.parse(LS['vd_d_'+u]):null;
+ if(r.row?.data?.sheets){D=loc?merge(r.row.data,loc):r.row.data;base=Date.parse(r.row.updated_at)}
+ else{D=loc||blank();base=null}
  if(!D.id)D.id=rid();
- if(error)LS['vd_d_'+u]=JSON.stringify(D);else save();
- V='home';draw()}
-async function logout(){await sb.auth.signOut();LS.removeItem('vd_cur');cur=null;D=S=null;draw()}
+ save();if(ch)sb.removeChannel(ch);listen();V='home';draw()}
+async function logout(){if(ch){sb.removeChannel(ch);ch=null}await sb.auth.signOut();LS.removeItem('vd_cur');cur=null;D=S=null;base=null;draw()}
 function go(v){V=v;draw()}
 
 function draw(){if(!cur)return login();
@@ -75,11 +101,11 @@ const home=()=>`<h2>Szia${D.name?', '+esc(D.name):''}!</h2><div class="big"><but
 function list(t){const a=D.sheets.filter(s=>s.t==t).sort((a,b)=>b.y*12+b.m-a.y*12-a.m);
  return `<h2>${t=='p'?'Jelenléti ívek':'Tankolási ívek'}</h2>${a.map(s=>`<div class="card row" style="justify-content:space-between"><span>${MON[s.m]} ${s.y}</span><span><button onclick="op(${s.id})">Megnyitás</button> <button class="r" onclick="rm(${s.id})">✕</button></span></div>`).join('')||'<i>Még nincs ív</i>'}<button class="fab" onclick="NT='${t}';go('n')">+</button>`}
 function op(id){S=D.sheets.find(s=>s.id==id);go('e')}
-function rm(id){if(!confirm('Törlöd az ívet?'))return;D.sheets=D.sheets.filter(s=>s.id!=id);save();draw()}
+function rm(id){if(!confirm('Törlöd az ívet?'))return;const x=D.sheets.find(s=>s.id==id);if(x)(D.del=D.del||{})[sk(x)]=Date.now();D.sheets=D.sheets.filter(s=>s.id!=id);save();draw()}
 const nv=()=>{const n=new Date();return `<h2>Új ív</h2><div class="card row"><select id="nm">${opts(MO,n.getMonth())}</select><select id="ny">${opts(YR,n.getFullYear())}</select><button onclick="mkNew()">Létrehozás</button><button class="g" onclick="go('${NT}')">Mégse</button></div>`};
 function mkNew(){const m=+$('#nm').value,y=+$('#ny').value;
  S=D.sheets.find(s=>s.t==NT&&s.m==m&&s.y==y);
- if(!S){S={id:Date.now(),t:NT,y,m,name:D.name,rows:{},sig:D.sig||''};D.sheets.push(S);save()}
+ if(!S){S={id:Date.now(),t:NT,y,m,name:D.name,rows:{},sig:D.sig||'',ts:Date.now()};D.sheets.push(S);save()}
  go('e')}
 
 const I=(d,f,w,l)=>`<td><input data-d="${d}" data-f="${f}" value="${esc(w[f])}"${l?` list="dl-${f}"`:''}></td>`;
@@ -97,14 +123,15 @@ function edit(){const f=S.t=='t';let r='';
  <div class="card row"><button onclick="mk(S).save(fn(S)+'.pdf')">PDF letöltés</button><button class="g" onclick="go('${S.t}')">Vissza</button></div>`}
 
 document.addEventListener('change',ev=>{const t=ev.target;if(!S||V!='e')return;
- if(t.id=='sm')S.m=+t.value;else if(t.id=='sy')S.y=+t.value;else if(t.id=='nm')S.name=t.value;
+ if(t.id=='sm'||t.id=='sy'){(D.del=D.del||{})[sk(S)]=Date.now();if(t.id=='sm')S.m=+t.value;else S.y=+t.value}
+ else if(t.id=='nm')S.name=t.value;
  else if(t.dataset.d){const d=t.dataset.d,f=t.dataset.f,v=t.value.trim();(S.rows[d]=S.rows[d]||{})[f]=v;
   const L={r:'routes',l:'lkw',n:'kenn'}[f];
-  if(L&&v&&!D[L].includes(v)){D[L].push(v);$('#dl-'+f).innerHTML=dl(L)}
+  if(L&&v&&!D[L].includes(v)){D[L].push(v);D.lt=Date.now();$('#dl-'+f).innerHTML=dl(L)}
   if('bep'.includes(f)){$('#du'+d).textContent=fmt(dur(S.rows[d]));const o=$('#tot');if(o)o.textContent=fmt(tot(S))}}
  else return;
  touch()});
-function touch(){save()}
+function touch(){if(S&&V=='e')S.ts=Date.now();save()}
 
 // Ende: üres mezőre kattintva az aktuális idő (5 percre kerekítve)
 document.addEventListener('focusin',ev=>{const t=ev.target;
@@ -139,7 +166,7 @@ function mk(s){const{jsPDF}=window.jspdf,d=new jsPDF(),f=s.t=='t',A=x=>String(x?
 function prof(){
  return `<h2>Profil</h2><div class="card"><label>Teljes név<br><input value="${esc(D.name)}" onchange="D.name=this.value.trim();save()"></label></div>
  ${[['routes','Mentett útvonalak'],['lkw','Mentett LKW számok'],['kenn','Mentett Kennzeichen']].map(([k,t])=>`<div class="card"><h3>${t}</h3>${D[k].map((x,i)=>`<div class="row" style="justify-content:space-between;margin:4px 0">${esc(x)}<button class="r" onclick="del('${k}',${i})">✕</button></div>`).join('')||'<i>üres</i>'}</div>`).join('')}`}
-function del(k,i){D[k].splice(i,1);save();draw()}
+function del(k,i){D[k].splice(i,1);D.lt=Date.now();save();draw()}
 
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 sb.auth.getSession().then(({data})=>{const u=data.session?.user.email.split('@')[0];u?load(u):(cur=null,draw())});
