@@ -32,8 +32,8 @@ const $=s=>document.querySelector(s),LS=localStorage,p2=n=>String(n).padStart(2,
 const MON=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 const T=[''];for(let h=0;h<24;h++)for(let m=0;m<60;m+=5)T.push(p2(h)+':'+p2(m));
 const TO=T.map(v=>[v,v||'–']),PA=[['','–'],['0','0'],['1','1']],ST=[['','–'],['K','K'],['U','U']],
-MO=MON.map((x,i)=>[i,x]),YR=[...Array(12)].map((_,i)=>[2024+i,2024+i]);
-let cur=LS.vd_cur,D,S,V='home',NT='p',tmr,st,base=null,ch=null;
+MO=MON.map((x,i)=>[i,x]),YR=[...Array(12)].map((_,i)=>[2024+i,2024+i]),DY=[...Array(28)].map((_,i)=>[i+1,i+1]);
+let cur=LS.vd_cur,D,S,V='home',NT='p',tmr,st,base=null,ch=null,MC=null;
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const opts=(a,s)=>a.map(([v,t])=>`<option value="${v}"${v==s?' selected':''}>${t}</option>`).join('');
 const rid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,10);
@@ -76,6 +76,37 @@ const uid=()=>D.id,fn=s=>(s.t=='p'?'jelenleti':'tankolas')+'_'+s.y+'-'+p2(s.m+1)
 const b64=d=>d.output('datauristring').split(',')[1];
 const dl=k=>D[k].map(x=>`<option value="${esc(x)}">`).join('');
 
+/* ---------- e-mail küldés (a Supabase send-mail függvényen keresztül, a felhasználó saját Gmailjéről) ---------- */
+const gm=x=>/^[^\s@]+@(gmail|googlemail)\.com$/i.test(x),em=x=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x);
+const noMC=u=>({user_id:u,sender_email:'',recipient_email:'',auto:false,day:1,has_pass:false});
+async function loadMail(){let u=null;
+ try{u=(await sb.auth.getUser()).data.user.id;
+  const{data}=await sb.from('vd_mail').select('*').eq('user_id',u).maybeSingle();
+  MC=data||noMC(u)}catch(e){MC=noMC(u)}}
+async function call(body){const{data,error}=await sb.functions.invoke('send-mail',{body});
+ if(error){let m=error.message;try{m=(await error.context.json()).error||m}catch(e){}throw Error(m)}
+ if(data&&data.ok===false)throw Error(data.error);return data}
+async function saveMailCfg(){
+ const s=$('#ms').value.trim().toLowerCase(),r=$('#mr').value.trim(),a=$('#ma').checked,d=+$('#md').value;
+ if(!gm(s))return alert('Saját címnek Gmail-cím kell (gmail.com).');
+ if(!em(r))return alert('Adj meg érvényes fogadó e-mail címet.');
+ const hp=s===MC.sender_email?MC.has_pass:false;
+ if(a&&!hp)return alert('Az automatikus küldéshez előbb mentsd el az alkalmazásjelszót.');
+ const{error}=await sb.from('vd_mail').upsert({user_id:MC.user_id,sender_email:s,recipient_email:r,auto:a,day:d,has_pass:hp});
+ if(error)return alert(error.message);
+ await loadMail();draw();alert('Mentve.')}
+async function savePass(){const p=$('#mp').value.trim();
+ if(!p)return alert('Írd be az alkalmazásjelszót.');
+ if(!MC.sender_email)return alert('Előbb mentsd el a Gmail-címedet.');
+ try{await call({action:'pass',pass:p});await loadMail();draw();alert('A Gmail elfogadta, a jelszó mentve.')}catch(e){alert(e.message)}}
+async function delPass(){if(!confirm('Törlöd az alkalmazásjelszót? Az automatikus küldés is kikapcsol.'))return;
+ try{await call({action:'delpass'});await loadMail();draw()}catch(e){alert(e.message)}}
+async function sendPrev(){try{const r=await call({prev:true});alert(`Elküldve (${r.sent} ív) ide: ${r.to}`)}catch(e){alert(e.message)}}
+async function sendSheet(){
+ if(!MC||!MC.has_pass||!MC.recipient_email)return alert('Előbb add meg a Profilban a címeket és az alkalmazásjelszót.');
+ clearTimeout(st);await push();
+ try{const r=await call({y:S.y,m:S.m});alert(`Elküldve (${r.sent} ív) ide: ${r.to}`)}catch(e){alert(e.message)}}
+
 function login(){$('#app').innerHTML=`<main style="max-width:380px;margin:auto"><div class="card"><h2 style="color:#4caf7a">Jelenléti & Tankolás</h2><p><input id="u" placeholder="Felhasználónév"></p><p><input id="p" type="password" placeholder="Jelszó (min. 6 karakter)"></p><div class="row"><button onclick="auth(0)">Belépés</button><button class="g" onclick="auth(1)">Regisztráció</button></div></div></main>`}
 async function auth(reg){const u=$('#u').value.trim(),p=$('#p').value;
  if(!u||!p)return alert('Töltsd ki mindkét mezőt');
@@ -89,8 +120,8 @@ async function load(u){const r=await cloud();
  if(r.row?.data?.sheets){D=loc?merge(r.row.data,loc):r.row.data;base=Date.parse(r.row.updated_at)}
  else{D=loc||blank();base=null}
  if(!D.id)D.id=rid();
- save();if(ch)sb.removeChannel(ch);listen();V='home';draw()}
-async function logout(){if(ch){sb.removeChannel(ch);ch=null}await sb.auth.signOut();LS.removeItem('vd_cur');cur=null;D=S=null;base=null;draw()}
+ save();if(ch)sb.removeChannel(ch);listen();await loadMail();V='home';draw()}
+async function logout(){if(ch){sb.removeChannel(ch);ch=null}await sb.auth.signOut();LS.removeItem('vd_cur');cur=null;D=S=MC=null;base=null;draw()}
 function go(v){V=v;draw()}
 
 function draw(){if(!cur)return login();
@@ -120,7 +151,7 @@ function edit(){const f=S.t=='t';let r='';
  <div class="wrap card"><table><tr>${H.map(h=>`<th>${h}</th>`).join('')}</tr>${r}</table></div>
  ${f?'':`<div class="card">Summe: <b id="tot">${fmt(tot(S))}</b> &nbsp; <small>* K = Krank, U = Urlaub</small></div>`}
  <div class="card">Unterschrift des Arbeitnehmers:<br><canvas id="sg"></canvas><br><br><button class="g" onclick="clearSig()">Aláírás törlése</button></div>
- <div class="card row"><button onclick="mk(S).save(fn(S)+'.pdf')">PDF letöltés</button><button class="g" onclick="go('${S.t}')">Vissza</button></div>`}
+ <div class="card row"><button onclick="mk(S).save(fn(S)+'.pdf')">PDF letöltés</button><button onclick="sendSheet()">Küldés e-mailben</button><button class="g" onclick="go('${S.t}')">Vissza</button></div>`}
 
 document.addEventListener('change',ev=>{const t=ev.target;if(!S||V!='e')return;
  if(t.id=='sm'||t.id=='sy'){(D.del=D.del||{})[sk(S)]=Date.now();if(t.id=='sm')S.m=+t.value;else S.y=+t.value}
@@ -163,8 +194,17 @@ function mk(s){const{jsPDF}=window.jspdf,d=new jsPDF(),f=s.t=='t',A=x=>String(x?
  if(s.sig)d.addImage(s.sig,'PNG',15,y+2,50,16);
  return d}
 
-function prof(){
+function prof(){const M=MC||noMC('');
  return `<h2>Profil</h2><div class="card"><label>Teljes név<br><input value="${esc(D.name)}" onchange="D.name=this.value.trim();save()"></label></div>
+ <div class="card"><h3>E-mail küldés (saját Gmail)</h3>
+ <p><label>Saját Gmail-cím (erről megy a levél)<br><input id="ms" value="${esc(M.sender_email)}"></label></p>
+ <p><label>Fogadó e-mail cím<br><input id="mr" value="${esc(M.recipient_email)}"></label></p>
+ <p><label><input type="checkbox" id="ma" ${M.auto?'checked':''}> Automatikus küldés havonta, ennyedikén: <select id="md">${opts(DY,M.day)}</select></label></p>
+ <button onclick="saveMailCfg()">Mentés</button></div>
+ <div class="card"><h3>Gmail alkalmazásjelszó</h3>
+ <p><small>Google-fiók → Biztonság → Kétlépcsős azonosítás be → Alkalmazásjelszavak → új jelszó</small></p>
+ ${M.has_pass?'<p>✔ A jelszó el van mentve</p><button class="r" onclick="delPass()">Jelszó törlése</button>':'<p><input id="mp" type="password" placeholder="Alkalmazásjelszó"></p><button onclick="savePass()">Jelszó mentése és kipróbálása</button>'}</div>
+ <div class="card"><button onclick="sendPrev()">Előző hónap küldése most</button></div>
  ${[['routes','Mentett útvonalak'],['lkw','Mentett LKW számok'],['kenn','Mentett Kennzeichen']].map(([k,t])=>`<div class="card"><h3>${t}</h3>${D[k].map((x,i)=>`<div class="row" style="justify-content:space-between;margin:4px 0">${esc(x)}<button class="r" onclick="del('${k}',${i})">✕</button></div>`).join('')||'<i>üres</i>'}</div>`).join('')}`}
 function del(k,i){D[k].splice(i,1);D.lt=Date.now();save();draw()}
 
