@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="hu"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Jelenléti & Tankolás</title><link rel="manifest" href="manifest.json"><meta name="theme-color" content="#1e5a3a"><link rel="icon" href="icon.svg">
+<title>Workplace</title><link rel="manifest" href="manifest.json"><meta name="theme-color" content="#1e5a3a"><link rel="icon" href="icon.svg">
 <style>
 *{box-sizing:border-box}body{margin:0;font:15px system-ui,sans-serif;background:#0d0f0e;color:#e6ece8}
 #app{display:flex;min-height:100vh}
@@ -18,22 +18,46 @@ main{flex:1;padding:18px;overflow:auto;min-width:0}
 .wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:640px}
 td,th{border:1px solid #3a413d;padding:2px;text-align:center;font-size:13px}th{background:#1e5a3a}
 td input,td select{width:100%;padding:4px;border:0;background:transparent;font-size:13px}
+.pg{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px}
+.pk{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;height:130px;padding:10px 6px;background:#1b1f1d;border:1px solid #2a2f2c;color:#e6ece8;overflow:hidden}
+.pk svg{width:72px;height:46px;stroke:#4caf7a;fill:none;stroke-width:2;stroke-linejoin:round}
+.pk.ok{border-color:#4caf7a}.pk img{width:100%;height:80px;object-fit:cover;border-radius:6px}
+#ov{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;z-index:9;padding:16px}
+#ov .card{margin:0;min-width:260px}
 canvas{background:#fff;border-radius:8px;width:100%;max-width:400px;touch-action:none}
 @media(max-width:700px){#app{flex-direction:column-reverse}nav{width:auto;flex-direction:row;justify-content:space-around;border-right:0;border-top:1px solid #2a2f2c}nav b{display:none}.fab{bottom:90px}}
 </style></head><body><div id="app"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js"></script>
 <script>
 const sb=supabase.createClient('https://mdtfbyusnawqhmyatlxe.supabase.co','sb_publishable_VNDuXu5-9NkohXIanJY-Sw_doqjCuZn');
 const mail=u=>u.toLowerCase().replace(/[^a-z0-9._-]/g,'')+'@vd-app.hu';
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 const $=s=>document.querySelector(s),LS=localStorage,p2=n=>String(n).padStart(2,'0');
 const MON=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 const T=[''];for(let h=0;h<24;h++)for(let m=0;m<60;m+=5)T.push(p2(h)+':'+p2(m));
-const TO=T.map(v=>[v,v||'–']),PA=[['','–'],['0','0'],['1','1']],ST=[['','–'],['K','K'],['U','U']],
+const TO=T.map(v=>[v,v||'–']),PA=[['','–'],['0','0'],['1','1']],ST=[['','–'],['K','K'],['U','U'],['A','A']],
 MO=MON.map((x,i)=>[i,x]),YR=[...Array(12)].map((_,i)=>[2024+i,2024+i]),DY=[...Array(28)].map((_,i)=>[i+1,i+1]);
+const LEG='K= Krank  U=Urlaub  A=Abholung';
 let cur=LS.vd_cur,D,S,V='home',NT='p',tmr,st,base=null,ch=null,MC=null;
+let UID,PK,PM=new Date().getMonth(),PY=new Date().getFullYear(),PH={};
+const HUM=['januar','februar','marcius','aprilis','majus','junius','julius','augusztus','szeptember','oktober','november','december'];
+const SD='<rect x="2" y="8" width="36" height="22"/><path d="M38 30V14h10l10 10v6z"/><circle cx="14" cy="32" r="5"/><circle cx="48" cy="32" r="5"/>';
+const SL=[['elolrol','Elölről'],['balrol','Bal oldal'],['jobbrol','Jobb oldal'],['hatulrol','Hátulról'],['lenyitva','Lenyitva'],['forgalmi','Forgalmi'],['egyeb','Egyéb dok.']];
+const IC={
+ elolrol:'<rect x="14" y="4" width="36" height="26" rx="4"/><rect x="19" y="8" width="26" height="10" rx="2"/><circle cx="21" cy="24" r="2"/><circle cx="43" cy="24" r="2"/><rect x="10" y="30" width="9" height="9"/><rect x="45" y="30" width="9" height="9"/>',
+ balrol:SD,
+ jobbrol:'<g transform="translate(64 0) scale(-1 1)">'+SD+'</g>',
+ hatulrol:'<rect x="12" y="4" width="40" height="28"/><path d="M32 4v28M28 18v4M36 18v4"/><rect x="10" y="32" width="10" height="7"/><rect x="44" y="32" width="10" height="7"/>',
+ lenyitva:'<rect x="22" y="6" width="20" height="26"/><path d="M22 6L8 11v21h14M42 6l14 5v21H42"/><rect x="10" y="32" width="10" height="7"/><rect x="44" y="32" width="10" height="7"/>',
+ forgalmi:'<rect x="10" y="4" width="44" height="32" rx="3"/><path d="M16 14h20M16 20h32M16 26h24"/>',
+ egyeb:'<path d="M18 4h20l10 10v22H18z"/><path d="M38 4v10h10M24 22h18M24 28h18"/>'};
+const ic=k=>`<svg viewBox="0 0 64 40">${IC[k]}</svg>`;
+const pn=k=>k+'_'+HUM[PM]+'_'+PY;
+const pdir=()=>UID+'/'+PY+'-'+p2(PM+1);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const opts=(a,s)=>a.map(([v,t])=>`<option value="${v}"${v==s?' selected':''}>${t}</option>`).join('');
 const rid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,10);
@@ -101,13 +125,13 @@ async function savePass(){const p=$('#mp').value.trim();
  try{await call({action:'pass',pass:p});await loadMail();draw();alert('A Gmail elfogadta, a jelszó mentve.')}catch(e){alert(e.message)}}
 async function delPass(){if(!confirm('Törlöd az alkalmazásjelszót? Az automatikus küldés is kikapcsol.'))return;
  try{await call({action:'delpass'});await loadMail();draw()}catch(e){alert(e.message)}}
-async function sendPrev(){try{const r=await call({prev:true});alert(`Elküldve (${r.sent} ív) ide: ${r.to}`)}catch(e){alert(e.message)}}
+async function sendPrev(){try{const r=await call({prev:true});alert(`Elküldve (${r.sent} ív, ${r.photos} kép) ide: ${r.to}`)}catch(e){alert(e.message)}}
 async function sendSheet(){
  if(!MC||!MC.has_pass||!MC.recipient_email)return alert('Előbb add meg a Profilban a címeket és az alkalmazásjelszót.');
  clearTimeout(st);await push();
- try{const r=await call({y:S.y,m:S.m});alert(`Elküldve (${r.sent} ív) ide: ${r.to}`)}catch(e){alert(e.message)}}
+ try{const r=await call({y:S.y,m:S.m});alert(`Elküldve (${r.sent} ív, ${r.photos} kép) ide: ${r.to}`)}catch(e){alert(e.message)}}
 
-function login(){$('#app').innerHTML=`<main style="max-width:380px;margin:auto"><div class="card"><h2 style="color:#4caf7a">Jelenléti & Tankolás</h2><p><input id="u" placeholder="Felhasználónév"></p><p><input id="p" type="password" placeholder="Jelszó (min. 6 karakter)"></p><div class="row"><button onclick="auth(0)">Belépés</button><button class="g" onclick="auth(1)">Regisztráció</button></div></div></main>`}
+function login(){$('#app').innerHTML=`<main style="max-width:380px;margin:auto"><div class="card"><h2 style="color:#4caf7a">Workplace</h2><p><input id="u" placeholder="Felhasználónév"></p><p><input id="p" type="password" placeholder="Jelszó (min. 6 karakter)"></p><div class="row"><button onclick="auth(0)">Belépés</button><button class="g" onclick="auth(1)">Regisztráció</button></div></div></main>`}
 async function auth(reg){const u=$('#u').value.trim(),p=$('#p').value;
  if(!u||!p)return alert('Töltsd ki mindkét mezőt');
  const r=reg?await sb.auth.signUp({email:mail(u),password:p}):await sb.auth.signInWithPassword({email:mail(u),password:p});
@@ -115,22 +139,22 @@ async function auth(reg){const u=$('#u').value.trim(),p=$('#p').value;
  await load(u)}
 async function load(u){const r=await cloud();
  if(!r)return alert('Sikertelen belépés vagy nincs kapcsolat');
- cur=u;LS.vd_cur=u;
+ cur=u;LS.vd_cur=u;UID=r.user.id;
  const loc=LS['vd_d_'+u]?JSON.parse(LS['vd_d_'+u]):null;
  if(r.row?.data?.sheets){D=loc?merge(r.row.data,loc):r.row.data;base=Date.parse(r.row.updated_at)}
  else{D=loc||blank();base=null}
  if(!D.id)D.id=rid();
  save();if(ch)sb.removeChannel(ch);listen();await loadMail();V='home';draw()}
 async function logout(){if(ch){sb.removeChannel(ch);ch=null}await sb.auth.signOut();LS.removeItem('vd_cur');cur=null;D=S=MC=null;base=null;draw()}
-function go(v){V=v;draw()}
+function go(v){V=v;draw();if(v=='ph')loadPh()}
 
 function draw(){if(!cur)return login();
  const c=V=='e'?S.t:V=='n'?NT:V;
- $('#app').innerHTML=`<nav><b>Jelenléti & Tankolás</b>${[['home','Kezdőlap'],['p','Jelenléti'],['t','Tankolás'],['prof','Profil']].map(([k,t])=>`<button class="${c==k?'':'g'}" onclick="go('${k}')">${t}</button>`).join('')}<button class="g" onclick="logout()">Kilépés</button></nav><main>${V=='home'?home():V=='p'||V=='t'?list(V):V=='n'?nv():V=='e'?edit():prof()}</main>`;
+ $('#app').innerHTML=`<nav><b>Workplace</b>${[['home','Kezdőlap'],['p','Jelenléti'],['t','Tankolás'],['ph','Fényképek'],['prof','Profil']].map(([k,t])=>`<button class="${c==k?'':'g'}" onclick="go('${k}')">${t}</button>`).join('')}<button class="g" onclick="logout()">Kilépés</button></nav><main>${V=='home'?home():V=='p'||V=='t'?list(V):V=='n'?nv():V=='e'?edit():V=='ph'?ph():prof()}</main>`;
  if(V=='e')initSig()}
 const home=()=>`<h2>Szia${D.name?', '+esc(D.name):''}!</h2><div class="big"><button onclick="go('p')">Jelenléti</button><button onclick="go('t')">Tankolás</button></div>`;
 function list(t){const a=D.sheets.filter(s=>s.t==t).sort((a,b)=>b.y*12+b.m-a.y*12-a.m);
- return `<h2>${t=='p'?'Jelenléti ívek':'Tankolási ívek'}</h2>${a.map(s=>`<div class="card row" style="justify-content:space-between"><span>${MON[s.m]} ${s.y}</span><span><button onclick="op(${s.id})">Megnyitás</button> <button class="r" onclick="rm(${s.id})">✕</button></span></div>`).join('')||'<i>Még nincs ív</i>'}<button class="fab" onclick="NT='${t}';go('n')">+</button>`}
+ return `<h2>${t=='p'?'Jelenléti ívek':'Tankolási ívek'}</h2><div class="row" style="margin-bottom:12px"><button class="g" onclick="$('#imp').click()">Import (${t=='p'?'jelenléti':'tankolási'} PDF)</button><input id="imp" type="file" accept="application/pdf" hidden onchange="imp(this,'${t}')"></div>${a.map(s=>`<div class="card row" style="justify-content:space-between"><span>${MON[s.m]} ${s.y}</span><span><button onclick="op(${s.id})">Megnyitás</button> <button class="r" onclick="rm(${s.id})">✕</button></span></div>`).join('')||'<i>Még nincs ív</i>'}<button class="fab" onclick="NT='${t}';go('n')">+</button>`}
 function op(id){S=D.sheets.find(s=>s.id==id);go('e')}
 function rm(id){if(!confirm('Törlöd az ívet?'))return;const x=D.sheets.find(s=>s.id==id);if(x)(D.del=D.del||{})[sk(x)]=Date.now();D.sheets=D.sheets.filter(s=>s.id!=id);save();draw()}
 const nv=()=>{const n=new Date();return `<h2>Új ív</h2><div class="card row"><select id="nm">${opts(MO,n.getMonth())}</select><select id="ny">${opts(YR,n.getFullYear())}</select><button onclick="mkNew()">Létrehozás</button><button class="g" onclick="go('${NT}')">Mégse</button></div>`};
@@ -149,7 +173,7 @@ function edit(){const f=S.t=='t';let r='';
  return `<datalist id="dl-r">${dl('routes')}</datalist><datalist id="dl-l">${dl('lkw')}</datalist><datalist id="dl-n">${dl('kenn')}</datalist>
  <div class="card row"><b>${f?'Tankolás':'E&V GmbH'}</b><label>NAME <input id="nm" value="${esc(S.name)}"></label><label>MONAT <select id="sm">${opts(MO,S.m)}</select></label><label>JAHR <select id="sy">${opts(YR,S.y)}</select></label></div>
  <div class="wrap card"><table><tr>${H.map(h=>`<th>${h}</th>`).join('')}</tr>${r}</table></div>
- ${f?'':`<div class="card">Summe: <b id="tot">${fmt(tot(S))}</b> &nbsp; <small>* K = Krank, U = Urlaub</small></div>`}
+ ${f?'':`<div class="card">Summe: <b id="tot">${fmt(tot(S))}</b> &nbsp; <small>* ${LEG}</small></div>`}
  <div class="card">Unterschrift des Arbeitnehmers:<br><canvas id="sg"></canvas><br><br><button class="g" onclick="clearSig()">Aláírás törlése</button></div>
  <div class="card row"><button onclick="mk(S).save(fn(S)+'.pdf')">PDF letöltés</button><button onclick="sendSheet()">Küldés e-mailben</button><button class="g" onclick="go('${S.t}')">Vissza</button></div>`}
 
@@ -189,10 +213,68 @@ function mk(s){const{jsPDF}=window.jspdf,d=new jsPDF(),f=s.t=='t',A=x=>String(x?
   head:[f?['Nr.','TOUR/LKW NUMMER','Kennzeichen','Km Stand','Liter','AdBlue']:['Tag','Beginn (Uhrzeit)','Ende (Uhrzeit)','Pause','Dauer','*','Reiseweg','Spesen €']],body:rows,
   styles:{fontSize:8,cellPadding:1,lineColor:0,lineWidth:.2,textColor:0,halign:'center',minCellHeight:5.5},headStyles:{fillColor:255,textColor:0,fontStyle:'bold'}});
  let y=d.lastAutoTable.finalY+7;
- if(!f){d.setFontSize(9).text('Summe: '+fmt(tot(s)),15,y);d.setFont('helvetica','normal').setFontSize(7).text('* K= Krank  U=Urlaub',70,y);y+=8}
+ if(!f){d.setFontSize(9).text('Summe: '+fmt(tot(s)),15,y);d.setFont('helvetica','normal').setFontSize(7).text('* '+LEG,70,y);y+=8}
  d.setFont('helvetica','bold').setFontSize(9).text('Unterschrift des Arbeitnehmers:',15,y);
  if(s.sig)d.addImage(s.sig,'PNG',15,y+2,50,16);
  return d}
+
+/* ---------- Fényképek ---------- */
+const ph=()=>`<h2>Fényképek</h2><div class="card row"><select onchange="PM=+this.value;loadPh()">${opts(MO,PM)}</select><select onchange="PY=+this.value;loadPh()">${opts(YR,PY)}</select></div>
+<div class="pg">${SL.map(([k,t])=>{const u=PH[pn(k)];return `<button class="pk${u?' ok':''}" onclick="pick('${k}')">${u?`<img src="${u}">`:ic(k)}<span>${t}${u?' ✔':''}</span></button>`}).join('')}</div>
+<div class="card row" style="margin-top:12px"><button onclick="sendPhotos()">Képek küldése most</button><small>Sikeres küldés után a képek törlődnek.</small></div>`;
+async function loadPh(){PH={};
+ try{const b=sb.storage.from('vd-photos'),d=pdir(),{data:f}=await b.list(d),n=(f||[]).filter(x=>x.name.endsWith('.jpg'));
+  if(n.length){const{data:u}=await b.createSignedUrls(n.map(x=>d+'/'+x.name),3600);
+   (u||[]).forEach((x,i)=>{if(x.signedUrl)PH[n[i].name.slice(0,-4)]=x.signedUrl})}}catch(e){}
+ if(V=='ph')draw()}
+function closeOv(){const o=$('#ov');if(o)o.remove()}
+function pick(k){PK=k;const o=document.createElement('div');o.id='ov';
+ o.innerHTML=`<div class="card"><h3>${SL.find(x=>x[0]==k)[1]}</h3><div class="row"><button onclick="$('#fc').click()">📷 Fényképezés</button><button class="g" onclick="$('#fg').click()">🖼 Galéria</button></div><br>${PH[pn(k)]?'<button class="r" onclick="delPh()">Kép törlése</button> ':''}<button class="g" onclick="closeOv()">Mégse</button><input id="fc" type="file" accept="image/*" capture="environment" hidden onchange="upPh(this)"><input id="fg" type="file" accept="image/*" hidden onchange="upPh(this)"></div>`;
+ document.body.appendChild(o)}
+async function upPh(i){const f=i.files[0];if(!f)return;closeOv();
+ try{const bm=await createImageBitmap(f),sc=Math.min(1,1600/Math.max(bm.width,bm.height)),c=document.createElement('canvas');
+  c.width=Math.round(bm.width*sc);c.height=Math.round(bm.height*sc);c.getContext('2d').drawImage(bm,0,0,c.width,c.height);
+  const bl=await new Promise(r=>c.toBlob(r,'image/jpeg',.8));
+  const{error}=await sb.storage.from('vd-photos').upload(pdir()+'/'+pn(PK)+'.jpg',bl,{upsert:true,contentType:'image/jpeg'});
+  if(error)throw error}catch(e){alert('Feltöltés sikertelen: '+(e.message||e))}
+ loadPh()}
+async function delPh(){closeOv();
+ try{await sb.storage.from('vd-photos').remove([pdir()+'/'+pn(PK)+'.jpg'])}catch(e){alert(e.message)}
+ loadPh()}
+async function sendPhotos(){
+ if(!MC||!MC.has_pass||!MC.recipient_email)return alert('Előbb add meg a Profilban a címeket és az alkalmazásjelszót.');
+ try{const r=await call({action:'photos',y:PY,m:PM});alert(`Elküldve (${r.photos} kép) ide: ${r.to}`);loadPh()}catch(e){alert(e.message)}}
+
+/* ---------- PDF import (jelenléti és tankolási ív, a fülnek megfelelően) ---------- */
+async function imp(inp,want){const f=inp.files[0];inp.value='';if(!f)return;
+ try{const pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise,R=[];
+  for(let n=1;n<=pdf.numPages;n++){const tc=await(await pdf.getPage(n)).getTextContent();
+   const it=tc.items.map(i=>({s:i.str.trim(),x:i.transform[4],y:i.transform[5],c:i.transform[4]+i.width/2})).filter(i=>i.s).sort((a,b)=>b.y-a.y||a.x-b.x);
+   let g=null;for(const i of it){if(g&&g.pg==n&&Math.abs(g.y-i.y)<2.5)g.it.push(i);else R.push(g={pg:n,y:i.y,it:[i]})}}
+  R.forEach(r=>r.it.sort((a,b)=>a.x-b.x));
+  const first=R.findIndex(r=>r.it[0].s=='1');if(first<2)throw Error('forma');
+  const top=R[0].it.map(i=>i.s).join(' '),my=top.match(/MONAT\/JAHR:\s*(\S+)\s+(\d{4})/),m=my?MON.indexOf(my[1]):-1;
+  if(m<0)throw Error('forma');
+  const H=R.slice(1,first).flatMap(r=>r.it),hs=H.map(i=>i.s).join(' '),t=/Kennzeichen/.test(hs)?'t':/Beginn/.test(hs)?'p':null;
+  if(!t)throw Error('forma');
+  if(want&&t!=want)return alert(want=='t'?'Ez jelenléti PDF, a Tankolás fülön tankolási PDF-et importálj.':'Ez tankolási PDF, a Jelenléti fülön jelenléti PDF-et importálj.');
+  const cs=[];H.map(i=>i.c).sort((a,b)=>a-b).forEach(c=>{const l=cs[cs.length-1];if(l&&c-l.v<6){l.v=(l.v*l.n+c)/(l.n+1);l.n++}else cs.push({v:c,n:1})});
+  if(cs.length!=(t=='t'?6:8))throw Error('forma');
+  const F=t=='t'?[null,'l','n','k','i','a']:[null,'b','e','p',null,'x','r','s'],rows={};
+  for(const r of R.slice(first)){if(!/^\d{1,2}$/.test(r.it[0].s))continue;
+   const d=+r.it[0].s;if(d<1||d>31)continue;const cell=cs.map(()=>[]);
+   for(const i of r.it){let j=0;cs.forEach((c,k)=>{if(Math.abs(c.v-i.c)<Math.abs(cs[j].v-i.c))j=k});cell[j].push(i.s)}
+   const w={};cell.forEach((a,j)=>{const k=F[j],v=a.join(' ').trim();if(!k||!v)return;
+    if((k=='b'||k=='e')&&!/^\d{2}:\d{2}$/.test(v))return;
+    if(k=='p'&&v!='0'&&v!='1')return;
+    if(k=='x'&&v!='K'&&v!='U'&&v!='A')return;
+    w[k]=v});
+   if(Object.keys(w).length)rows[d]=w}
+  const y=+my[2],nm=(top.match(/NAME:\s*(.*?)\s*MONAT\/JAHR:/)||[])[1]||'',old=D.sheets.find(s=>s.t==t&&s.m==m&&s.y==y);
+  if(old&&!confirm(`Már van ${MON[m]} ${y} ív, felülírod az importtal?`))return;
+  S={id:old?old.id:Date.now(),t,y,m,name:nm||D.name,rows,sig:old?old.sig:(D.sig||''),ts:Date.now()};
+  D.sheets=D.sheets.filter(s=>!(s.t==t&&s.m==m&&s.y==y));D.sheets.push(S);save();go('e')}
+ catch(e){alert('Az import nem sikerült. Csak az alkalmazás által készített jelenléti/tankolási PDF olvasható be.')}}
 
 function prof(){const M=MC||noMC('');
  return `<h2>Profil</h2><div class="card"><label>Teljes név<br><input value="${esc(D.name)}" onchange="D.name=this.value.trim();save()"></label></div>
