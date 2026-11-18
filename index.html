@@ -46,7 +46,7 @@ let cur=LS.vd_cur,D,S,V='home',NT='p',tmr,st,base=null,ch=null,MC=null;
 let UID,PK,PM=new Date().getMonth(),PY=new Date().getFullYear(),PH={};
 const HUM=['januar','februar','marcius','aprilis','majus','junius','julius','augusztus','szeptember','oktober','november','december'];
 const SD='<rect x="2" y="8" width="36" height="22"/><path d="M38 30V14h10l10 10v6z"/><circle cx="14" cy="32" r="5"/><circle cx="48" cy="32" r="5"/>';
-const SL=[['elolrol','Elölről'],['balrol','Bal oldal'],['jobbrol','Jobb oldal'],['hatulrol','Hátulról'],['lenyitva','Lenyitva'],['forgalmi','Forgalmi'],['egyeb','Egyéb dok.']];
+const SL=[['elolrol','Elölről'],['balrol','Bal oldal'],['jobbrol','Jobb oldal'],['hatulrol','Hátulról'],['lenyitva','Lenyitva'],['forgalmi','Forgalmi'],['homero','Hőmérő'],['egyeb','Egyéb dok.']];
 const IC={
  elolrol:'<rect x="14" y="4" width="36" height="26" rx="4"/><rect x="19" y="8" width="26" height="10" rx="2"/><circle cx="21" cy="24" r="2"/><circle cx="43" cy="24" r="2"/><rect x="10" y="30" width="9" height="9"/><rect x="45" y="30" width="9" height="9"/>',
  balrol:SD,
@@ -54,6 +54,7 @@ const IC={
  hatulrol:'<rect x="12" y="4" width="40" height="28"/><path d="M32 4v28M28 18v4M36 18v4"/><rect x="10" y="32" width="10" height="7"/><rect x="44" y="32" width="10" height="7"/>',
  lenyitva:'<rect x="22" y="6" width="20" height="26"/><path d="M22 6L8 11v21h14M42 6l14 5v21H42"/><rect x="10" y="32" width="10" height="7"/><rect x="44" y="32" width="10" height="7"/>',
  forgalmi:'<rect x="10" y="4" width="44" height="32" rx="3"/><path d="M16 14h20M16 20h32M16 26h24"/>',
+ homero:'<path d="M28 6a4 4 0 0 1 8 0v17.1a8 8 0 1 1-8 0z"/><path d="M32 12v14"/><circle cx="32" cy="30" r="3"/><path d="M40 8h5M40 14h5M40 20h5"/>',
  egyeb:'<path d="M18 4h20l10 10v22H18z"/><path d="M38 4v10h10M24 22h18M24 28h18"/>'};
 const ic=k=>`<svg viewBox="0 0 64 40">${IC[k]}</svg>`;
 const pn=k=>k+'_'+HUM[PM]+'_'+PY;
@@ -152,7 +153,7 @@ function draw(){if(!cur)return login();
  const c=V=='e'?S.t:V=='n'?NT:V;
  $('#app').innerHTML=`<nav><b>Workplace</b>${[['home','Kezdőlap'],['p','Jelenléti'],['t','Tankolás'],['ph','Fényképek'],['prof','Profil']].map(([k,t])=>`<button class="${c==k?'':'g'}" onclick="go('${k}')">${t}</button>`).join('')}<button class="g" onclick="logout()">Kilépés</button></nav><main>${V=='home'?home():V=='p'||V=='t'?list(V):V=='n'?nv():V=='e'?edit():V=='ph'?ph():prof()}</main>`;
  if(V=='e')initSig()}
-const home=()=>`<h2>Szia${D.name?', '+esc(D.name):''}!</h2><div class="big"><button onclick="go('p')">Jelenléti</button><button onclick="go('t')">Tankolás</button></div>`;
+const home=()=>`<h2>Szia${D.name?', '+esc(D.name):''}!</h2><div class="big"><button onclick="go('p')">Jelenléti</button><button onclick="go('t')">Tankolás</button><button style="grid-column:1/-1" onclick="go('ph')">Fényképek</button></div>`;
 function list(t){const a=D.sheets.filter(s=>s.t==t).sort((a,b)=>b.y*12+b.m-a.y*12-a.m);
  return `<h2>${t=='p'?'Jelenléti ívek':'Tankolási ívek'}</h2><div class="row" style="margin-bottom:12px"><button class="g" onclick="$('#imp').click()">Import (${t=='p'?'jelenléti':'tankolási'} PDF)</button><input id="imp" type="file" accept="application/pdf" hidden onchange="imp(this,'${t}')"></div>${a.map(s=>`<div class="card row" style="justify-content:space-between"><span>${MON[s.m]} ${s.y}</span><span><button onclick="op(${s.id})">Megnyitás</button> <button class="r" onclick="rm(${s.id})">✕</button></span></div>`).join('')||'<i>Még nincs ív</i>'}<button class="fab" onclick="NT='${t}';go('n')">+</button>`}
 function op(id){S=D.sheets.find(s=>s.id==id);go('e')}
