@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="hu"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="hu"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Workplace</title><link rel="manifest" href="manifest.json"><meta name="theme-color" content="#1e5a3a"><link rel="icon" href="icon.svg">
 <style>
 *{box-sizing:border-box}body{margin:0;font:15px system-ui,sans-serif;background:#0d0f0e;color:#e6ece8}
@@ -25,7 +25,20 @@ td input,td select{width:100%;padding:4px;border:0;background:transparent;font-s
 #ov{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;z-index:9;padding:16px}
 #ov .card{margin:0;min-width:260px}
 canvas{background:#fff;border-radius:8px;width:100%;max-width:400px;touch-action:none}
-@media(max-width:700px){#app{flex-direction:column-reverse}nav{width:auto;flex-direction:row;justify-content:space-around;border-right:0;border-top:1px solid #2a2f2c}nav b{display:none}.fab{bottom:90px}}
+#ov .card{width:min(92vw,340px);min-width:0;text-align:center}
+#ov .row{justify-content:center}
+html,body{max-width:100%;overflow-x:hidden}
+#app{min-height:100vh;min-height:100dvh}
+@media(max-width:700px){
+#app{display:block;min-height:0}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:5;width:auto;flex-direction:row;gap:4px;padding:6px 6px calc(6px + env(safe-area-inset-bottom));border-right:0;border-top:1px solid #2a2f2c}
+nav b{display:none}
+nav button{flex:1 1 0;min-width:0;padding:10px 2px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+main{padding:14px 12px calc(84px + env(safe-area-inset-bottom))}
+.big{gap:10px}.big button{padding:28px 6px;font-size:17px}
+.fab{bottom:calc(84px + env(safe-area-inset-bottom));right:14px}
+.pg{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
 </style></head><body><div id="app"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
