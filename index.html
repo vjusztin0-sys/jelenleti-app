@@ -23,6 +23,13 @@ td input,td select{width:100%;padding:4px;border:0;background:transparent;font-s
 .pk svg{width:72px;height:46px;stroke:#4caf7a;fill:none;stroke-width:2;stroke-linejoin:round}
 .pk.ok{border-color:#4caf7a}.pk img{width:100%;height:70px;object-fit:cover;border-radius:6px}
 .pk span{font-size:13px;line-height:1.15;text-align:center}
+.ls{display:none}
+.pt{min-width:0;font-variant-numeric:tabular-nums}.pt td,.pt th{font-size:12px;padding:4px 3px}.pt td{text-align:right}.pt td:first-child,.pt td:nth-child(2){text-align:center}
+.pt tr.we td{color:#7d8a83;background:#161a18}.pt tr.tt td{font-weight:700;background:#1e5a3a33}
+.sm{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid #2a2f2c}.sm:last-child{border:0}.sm b{white-space:nowrap}
+.net{font-size:22px;color:#4caf7a}
+.gr{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}.gr label{font-size:12px;color:#9aa8a0}.gr select,.gr input:not([type=checkbox]){width:100%;margin-top:3px}
+details summary{cursor:pointer;font-weight:600}
 #ov{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;z-index:9;padding:16px}
 #ov .card{margin:0;min-width:260px}
 canvas{background:#fff;border-radius:8px;width:100%;max-width:400px;touch-action:none}
@@ -35,6 +42,7 @@ html,body{max-width:100%;overflow-x:hidden}
 nav{position:fixed;left:0;right:0;bottom:0;z-index:5;width:auto;flex-direction:row;gap:4px;padding:6px 6px calc(6px + env(safe-area-inset-bottom));border-right:0;border-top:1px solid #2a2f2c}
 nav b{display:none}
 nav button{flex:1 1 0;min-width:0;padding:10px 2px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+nav .lo{display:none}.ll{display:none}.ls{display:inline}
 main{padding:14px 12px calc(84px + env(safe-area-inset-bottom))}
 .big{gap:10px}.big button{padding:28px 6px;font-size:17px}
 .fab{bottom:calc(84px + env(safe-area-inset-bottom));right:14px}
@@ -166,9 +174,9 @@ function go(v){V=v;draw();if(v=='ph')loadPh()}
 
 function draw(){if(!cur)return login();
  const c=V=='e'?S.t:V=='n'?NT:V;
- $('#app').innerHTML=`<nav><b>Workplace</b>${[['home','Kezdőlap'],['p','Jelenléti'],['t','Tankolás'],['ph','Fényképek'],['prof','Profil']].map(([k,t])=>`<button class="${c==k?'':'g'}" onclick="go('${k}')">${t}</button>`).join('')}<button class="g" onclick="logout()">Kilépés</button></nav><main>${V=='home'?home():V=='p'||V=='t'?list(V):V=='n'?nv():V=='e'?edit():V=='ph'?ph():prof()}</main>`;
+ $('#app').innerHTML=`<nav><b>Workplace</b>${[['home','Kezdőlap'],['p','Jelenléti'],['t','Tankolás'],['ph','Fényképek'],['b','Bérszámfejtés','Bér'],['prof','Profil']].map(([k,t,sh])=>`<button class="${c==k?'':'g'}" onclick="go('${k}')"><span class="ll">${t}</span><span class="ls">${sh||t}</span></button>`).join('')}<button class="g lo" onclick="logout()">Kilépés</button></nav><main>${V=='home'?home():V=='p'||V=='t'?list(V):V=='n'?nv():V=='e'?edit():V=='ph'?ph():V=='b'?ber():prof()}</main>`;
  if(V=='e')initSig()}
-const home=()=>`<h2>Szia${D.name?', '+esc(D.name):''}!</h2><div class="big"><button onclick="go('p')">Jelenléti</button><button onclick="go('t')">Tankolás</button><button onclick="go('ph')">Fényképek</button></div>`;
+const home=()=>`<h2>Szia${D.name?', '+esc(D.name):''}!</h2><div class="big"><button onclick="go('p')">Jelenléti</button><button onclick="go('t')">Tankolás</button><button onclick="go('ph')">Fényképek</button><button onclick="go('b')">Bérszámfejtés</button></div>`;
 function list(t){const a=D.sheets.filter(s=>s.t==t).sort((a,b)=>b.y*12+b.m-a.y*12-a.m);
  return `<h2>${t=='p'?'Jelenléti ívek':'Tankolási ívek'}</h2><div class="row" style="margin-bottom:12px"><button class="g" onclick="$('#imp').click()">Import (${t=='p'?'jelenléti':'tankolási'} PDF)</button><input id="imp" type="file" accept="application/pdf" hidden onchange="imp(this,'${t}')"></div>${a.map(s=>`<div class="card row" style="justify-content:space-between"><span>${MON[s.m]} ${s.y}</span><span><button onclick="op(${s.id})">Megnyitás</button> <button class="r" onclick="rm(${s.id})">✕</button></span></div>`).join('')||'<i>Még nincs ív</i>'}<button class="fab" onclick="NT='${t}';go('n')">+</button>`}
 function op(id){S=D.sheets.find(s=>s.id==id);go('e')}
@@ -233,6 +241,136 @@ function mk(s){const{jsPDF}=window.jspdf,d=new jsPDF(),f=s.t=='t',A=x=>String(x?
  d.setFont('helvetica','bold').setFontSize(9).text('Unterschrift des Arbeitnehmers:',15,y);
  if(s.sig)d.addImage(s.sig,'PNG',15,y+2,50,16);
  return d}
+
+/* ---------- Bérszámfejtés (a havi jelenléti ívből számol; becslés a német szabályok szerint) ---------- */
+let BM=new Date().getMonth(),BY=new Date().getFullYear();
+const BD={kl:'I',kids:0,bl:'BY',kirche:1,kvz:2.69,hr:13.90,gl:13.71,sp:28,satnet:125,vh:0,satH:0,hol:1};
+const BLS=[['BW','Baden-Württemberg'],['BY','Bayern'],['BE','Berlin'],['BB','Brandenburg'],['HB','Bremen'],['HH','Hamburg'],['HE','Hessen'],['MV','Mecklenburg-Vorpommern'],['NI','Niedersachsen'],['NW','Nordrhein-Westfalen'],['RP','Rheinland-Pfalz'],['SL','Saarland'],['SN','Sachsen'],['ST','Sachsen-Anhalt'],['SH','Schleswig-Holstein'],['TH','Thüringen']];
+const BNUM=['kids','kvz','hr','gl','sp','satnet','vh'],BBOOL=['kirche','satH','hol'];
+const bp=()=>({...BD,...(D.bp||{})});
+const num=v=>{const n=parseFloat(String(v??'').replace(',','.'));return isNaN(n)?0:n};
+const r2=v=>Math.round((v+Number.EPSILON)*100)/100;
+const Eu=v=>v.toLocaleString('hu-HU',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const Cu=v=>v?v.toFixed(2).replace('.',','):'';
+const hh=m=>fmt(Math.round(m));
+const WD=['V','H','K','Sze','Cs','P','Szo'];
+
+/* ünnepnapok tartományonként */
+const addD=(dt,n)=>new Date(dt.getFullYear(),dt.getMonth(),dt.getDate()+n);
+function easter(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=(h+l-7*m+114)%31+1;return new Date(y,mo-1,da)}
+function holidays(y,bl){const H={},E0=easter(y),add=(dt,n)=>{H[dt.getMonth()+'-'+dt.getDate()]=n},set=(m,d,n)=>{H[m+'-'+d]=n};
+ set(0,1,'Neujahr');add(addD(E0,-2),'Karfreitag');add(addD(E0,1),'Ostermontag');set(4,1,'Tag der Arbeit');add(addD(E0,39),'Christi Himmelfahrt');add(addD(E0,50),'Pfingstmontag');set(9,3,'Tag der Deutschen Einheit');set(11,25,'1. Weihnachtstag');set(11,26,'2. Weihnachtstag');
+ if(['BW','BY','ST'].includes(bl))set(0,6,'Heilige Drei Könige');
+ if(['BE','MV'].includes(bl))set(2,8,'Internationaler Frauentag');
+ if(['BW','BY','HE','NW','RP','SL'].includes(bl))add(addD(E0,60),'Fronleichnam');
+ if(bl=='SL')set(7,15,'Mariä Himmelfahrt');
+ if(bl=='TH')set(8,20,'Weltkindertag');
+ if(['BB','MV','SN','ST','TH','HB','HH','NI','SH'].includes(bl))set(9,31,'Reformationstag');
+ if(['BW','BY','NW','RP','SL'].includes(bl))set(10,1,'Allerheiligen');
+ if(bl=='SN'){let d=new Date(y,10,22);while(d.getDay()!=3)d=addD(d,-1);add(d,'Buß- und Bettag')}
+ return H}
+
+/* § 3b EStG: a nap százalékos pótléka (vasárnap 50, ünnep 125, 150: 12.25/26 és 05.01; 12.24 14 órától 150, 12.31 14 órától 125) */
+function dayPct(date,H,tod){const g=date.getDay(),m=date.getMonth(),d=date.getDate();let p=g==0?50:0;
+ if(H[m+'-'+d])p=Math.max(p,(m==11&&(d==25||d==26))||(m==4&&d==1)?150:125);
+ if(m==11&&d==24&&tod>=840)p=Math.max(p,150);
+ if(m==11&&d==31&&tod>=840)p=Math.max(p,125);
+ return p}
+/* egy műszak percei pótlék-kategóriánként; az éjszaka 20–06 (25%), éjfél előtt kezdett éjszakai munkánál 0–4 óra 40% */
+function surch(y,m,d,w,H){const r={n25:0,n40:0,s50:0,h125:0,h150:0},b=mi(w.b);let e=mi(w.e);const cross=e<=b;if(cross)e+=1440;
+ const start=new Date(y,m,d),carry=dayPct(start,H,0);
+ for(let t=b;t<e;t++){const off=t>=1440?1:0,tod=t-off*1440,date=off?addD(start,1):start;
+  if(tod>=1200||tod<360){if(tod<240&&off&&cross)r.n40++;else r.n25++}
+  let pd=dayPct(date,H,tod);if(off&&cross&&tod<240)pd=Math.max(pd,carry);
+  if(pd==50)r.s50++;else if(pd==125)r.h125++;else if(pd==150)r.h150++}
+ return r}
+
+/* § 32a EStG 2026 tarifa + PAP 2026 (Lohnsteuer) */
+function tarif(x){x=Math.floor(x);if(x<=12348)return 0;
+ if(x<=17799){const y=(x-12348)/1e4;return Math.floor((914.51*y+1400)*y)}
+ if(x<=69878){const z=(x-17799)/1e4;return Math.floor((173.1*z+2397)*z+1034.87)}
+ if(x<=277825)return Math.floor(.42*x-11135.63);
+ return Math.floor(.45*x-19470.38)}
+function up56(zx){const diff=(tarif(zx*1.25)-tarif(zx*.75))*2,mist=Math.floor(zx*.14);return Math.max(diff,mist)}
+function st56(x){const W1=14071,W2=34939,W3=222260;x=Math.floor(x);let s;
+ if(x>W2){s=up56(W2);if(x>W3)s+=(W3-W2)*.42+(x-W3)*.45;else s+=(x-W2)*.42}
+ else{s=up56(x);if(x>W1){const v=s,h=up56(W1)+(x-W1)*.42;s=Math.min(h,v)}}
+ return Math.floor(s)}
+function pvAN(P){let v=1.8;if(P.kids==0)v+=.6;else if(P.kids>=2)v-=.25*(Math.min(P.kids,5)-1);if(P.bl=='SN')v+=.5;return v}
+function taxes(SB,P){
+ const kvr=7.3+P.kvz/2,pvr=pvAN(P),kvb=Math.min(SB,69750/12),rvb=Math.min(SB,101400/12);
+ const kv=r2(kvb*kvr/100),rv=r2(rvb*.093),av=r2(rvb*.013),pv=r2(kvb*pvr/100);
+ const jr=SB*12,kl=P.kl,vr=Math.min(jr,101400)*.093,
+  vkp=kl=='VI'?0:Math.min(jr,69750)*((.07+P.kvz/200)+pvr/100),valv=kl=='VI'?0:Math.min(jr,101400)*.013,
+  vsp=Math.ceil(Math.max(vkp+vr,vr+Math.min(1900,valv+vkp))-1e-9),
+  efa=kl=='II'?4260+Math.max(0,P.kids-1)*240:0,
+  zve=Math.floor(Math.max(0,jr-Math.min(jr,1230)-36-efa-vsp));
+ const stx=kl=='III'?tarif(zve/2)*2:(kl=='V'||kl=='VI')?st56(zve):tarif(zve);
+ const lst=Math.floor(stx*100/12)/100,free=20350*(kl=='III'?2:1),soliJ=stx>free?Math.min(stx*.055,(stx-free)*.119):0,
+  soli=Math.floor(soliJ*100/12)/100,kr=(P.bl=='BW'||P.bl=='BY')?8:9,kst=P.kirche?r2(lst*kr/100):0;
+ return{lst,kst,soli,kv,rv,av,pv,zve,vsp,kr,kvr,pvr}}
+
+function calcB(){
+ const P=bp(),n=new Date(BY,BM+1,0).getDate(),H=holidays(BY,P.bl),sh=D.sheets.find(s=>s.t=='p'&&s.y==BY&&s.m==BM),rows=sh?sh.rows:{},days=[];
+ for(let d=1;d<=n;d++){const w=rows[d]||{},g=new Date(BY,BM,d).getDay(),worked=!!(w.b&&w.e);
+  days.push({d,g,w,worked,mins:worked?dur(w):0,st:w.x||'',hol:H[BM+'-'+d]||''})}
+ const pool=days.filter(x=>x.worked&&x.g!=6),avg=pool.length?pool.reduce((a,x)=>a+x.mins,0)/pool.length:480,avgMin=P.vh>0?P.vh*60:avg;
+ let pm=0,sp=0,nSp=0,nSat=0,uD=0,gr=0;const S5={n25:0,n40:0,s50:0,h125:0,h150:0};
+ for(const x of days){const wk=x.g>=1&&x.g<=5;let pmin=0;x.kind='';
+  if(x.worked){x.kind='w';pmin=(x.g==6&&!P.satH)?0:x.mins}
+  else if(wk&&x.st=='U'){x.kind='U';pmin=avgMin;uD++}
+  else if(wk&&x.st=='K'){x.kind='K';pmin=avgMin}
+  else if(wk&&x.hol&&P.hol&&!x.st){x.kind='F';pmin=avgMin}
+  x.pmin=pmin;pm+=pmin;x.gross=pmin/60*P.hr;gr+=x.gross;
+  x.sp=(x.worked&&x.g!=6)?P.sp:0;sp+=x.sp;if(x.sp)nSp++;
+  x.sat=(x.worked&&x.g==6)?P.satnet:0;if(x.sat)nSat++;
+  if(x.worked){const r=surch(BY,BM,x.d,x.w,H);for(const k in S5)S5[k]+=r[k]}}
+ const f=P.gl/60,A={n25:S5.n25*.25*f,n40:S5.n40*.4*f,s50:S5.s50*.5*f,h125:S5.h125*1.25*f,h150:S5.h150*1.5*f};
+ const wc=days.filter(x=>x.worked).length,nightA=A.n25+A.n40,sfnP=wc?nightA/wc*uD:0,surT=A.n25+A.n40+A.s50+A.h125+A.h150,SB=gr+sfnP;
+ const tx=taxes(SB,P),ded=tx.lst+tx.kst+tx.soli+tx.kv+tx.rv+tx.av+tx.pv,rt=SB>0?ded/SB:0;
+ for(const x of days){x.net=x.gross*(1-rt)+x.sat;x.tot=x.net+x.sp}
+ const gesamt=SB+sp+surT,netto=gesamt-ded,satT=nSat*P.satnet;
+ return{P,days,sh,pm,gr,sfnP,SB,sp,nSp,nSat,uD,S5,A,surT,tx,ded,gesamt,netto,satT,payout:netto+satT,avgMin,sumNet:days.reduce((a,x)=>a+x.net,0),sumTot:days.reduce((a,x)=>a+x.tot,0)}}
+
+function payRes(){const c=calcB(),P=c.P,L=(t,v,b)=>`<div class="sm"><span>${t}</span><b>${v}</b></div>`;
+ const rowsH=c.days.map(x=>{const lab=x.worked?fmt(x.mins):(x.kind=='U'?'U':x.kind=='K'?'K':x.kind=='F'?'Ü':x.st);
+  return `<tr class="${(x.g==0||x.g==6)&&!x.worked?'we':''}"><td>${x.d}. ${WD[x.g]}${x.hol?' ★':''}</td><td>${lab}</td><td>${Cu(x.gross)}</td><td>${Cu(x.net)}</td><td>${Cu(x.sp)}</td><td><b>${Cu(x.tot)}</b></td></tr>`}).join('');
+ const sl=[[c.S5.n25,c.A.n25,'Nachtzuschlag 25%'],[c.S5.n40,c.A.n40,'Nachtzuschlag 40% (0–4 óra)'],[c.S5.s50,c.A.s50,'Sonntagszuschlag 50%'],[c.S5.h125,c.A.h125,'Feiertagszuschlag 125%'],[c.S5.h150,c.A.h150,'Feiertagszuschlag 150%']].filter(x=>x[0]);
+ const t=c.tx;
+ return `${c.sh?'':'<div class="card">Erre a hónapra még nincs jelenléti ív, ezért minden érték nulla.</div>'}
+ <div class="wrap card"><table class="pt"><tr><th>Nap</th><th>Óra</th><th>Bruttó €</th><th>Nettó €</th><th>Spesen €</th><th>Σ €</th></tr>${rowsH}
+ <tr class="tt"><td>Σ</td><td>${hh(c.pm)}</td><td>${Cu(c.gr)}</td><td>${Cu(c.sumNet)}</td><td>${Cu(c.sp)}</td><td>${Cu(c.sumTot)}</td></tr></table>
+ <small>★ ünnepnap (a kiválasztott Bundesland szerint). U szabadság, K beteg, Ü fizetett ünnepnap: ezeken a nap a hónap átlagos óraszámával fizetett. Szombat: fix nettó összeg, órabér nélkül. A napi nettó a havi levonások arányából számolt. Az éjszakai és a vasárnapi/ünnepi pótlék, valamint az SFN pflichtig csak lent adódik hozzá.</small></div>
+ <div class="card"><h3>Havi összesítés (bérpapír szerint)</h3>
+ ${L('Órabér: '+hh(c.pm)+' óra × '+Eu(P.hr),Eu(c.gr))}
+ ${c.sfnP?L('023 SFN pflichtig (szabadság éjszakai pótléka, '+c.uD+' nap)',Eu(c.sfnP)):''}
+ ${L('<b>Steuer-/SV-Brutto</b>','<b>'+Eu(c.SB)+'</b>')}
+ ${c.sp?L('003/008 Spesen, adómentes ('+c.nSp+' nap × '+Eu(P.sp)+')',Eu(c.sp)):''}
+ ${sl.map(x=>L('011 '+x[2]+' ('+hh(x[0])+' óra, adómentes)',Eu(x[1]))).join('')}
+ ${L('<b>Gesamt-Brutto</b>','<b>'+Eu(c.gesamt)+'</b>')}</div>
+ <div class="card"><h3>Levonások (becsült, Steuerklasse ${P.kl})</h3>
+ ${L('Lohnsteuer','− '+Eu(t.lst))}${t.kst?L('Kirchensteuer ('+t.kr+'%)','− '+Eu(t.kst)):''}${t.soli?L('Solidaritätszuschlag','− '+Eu(t.soli)):''}
+ ${L('KV-Beitrag ('+(t.kvr).toFixed(3).replace(/0+$/,'').replace('.',',')+'%)','− '+Eu(t.kv))}${L('RV-Beitrag (9,3%)','− '+Eu(t.rv))}${L('AV-Beitrag (1,3%)','− '+Eu(t.av))}${L('PV-Beitrag ('+String(t.pvr).replace('.',',')+'%)','− '+Eu(t.pv))}
+ ${L('<b>Netto-Verdienst (bérpapír szerint)</b>','<b>'+Eu(c.netto)+'</b>')}
+ ${c.satT?L('Szombat fix, nettó ('+c.nSat+' × '+Eu(P.satnet)+')','+ '+Eu(c.satT)):''}
+ <div class="sm"><span><b>Várható kifizetés összesen</b></span><b class="net">${Eu(c.payout)}</b></div></div>`}
+
+function ber(){const P=bp(),o=(a,s)=>a.map(([v,t])=>`<option value="${v}"${v==s?' selected':''}>${t}</option>`).join(''),KL=['I','II','III','IV','V','VI'].map(x=>[x,'Steuerklasse '+x]);
+ const f=(k,t)=>`<label>${t}<input inputmode="decimal" value="${P[k]}" onchange="setB('${k}',this.value)"></label>`;
+ return `<h2>Bérszámfejtés</h2>
+ <div class="card row"><select onchange="BM=+this.value;draw()">${opts(MO,BM)}</select><select onchange="BY=+this.value;draw()">${opts(YR,BY)}</select></div>
+ <div class="card"><div class="gr">
+ <label>Adókategória<select onchange="setB('kl',this.value)">${o(KL,P.kl)}</select></label>
+ <label>Gyerekek száma<select onchange="setB('kids',this.value)">${o([0,1,2,3,4,5].map(x=>[x,x==5?'5 vagy több':x]),P.kids)}</select></label>
+ <label>Tartomány (ünnepnapok)<select onchange="setB('bl',this.value)">${o(BLS,P.bl)}</select></label>
+ <label><br><input type="checkbox" ${P.kirche?'checked':''} onchange="setB('kirche',this.checked)"> Egyházi adó fizetése</label></div></div>
+ <div id="pr">${payRes()}</div>
+ <div class="card"><details><summary>Beállítások</summary><br><div class="gr">
+ ${f('hr','Órabér € (minimálbér)')}${f('gl','Pótlékok alapórabére €')}${f('sp','Spesen €/nap (adómentes)')}${f('satnet','Szombat fix nettó €')}${f('kvz','KV Zusatzbeitrag %')}${f('vh','Szabadság/beteg nap órái (0 = a hónap átlaga)')}</div>
+ <p><label><input type="checkbox" ${P.satH?'checked':''} onchange="setB('satH',this.checked)"> A szombati órák is órabéresek (alapból: csak a fix összeg)</label></p>
+ <p><label><input type="checkbox" ${P.hol?'checked':''} onchange="setB('hol',this.checked)"> Hétköznapra eső ünnepnap fizetett, ha nem dolgoztál</label></p>
+ <small>Becslés. Alapok: Lohnsteuer a 2026-os BMF programablaufplan (§ 32a EStG tarifa, Vorsorgepauschale, Pauschbeträge) szerint, pótlékok a § 3b EStG szerint (éjszaka 20–06: 25%, éjfél előtt kezdett műszaknál 0–4 óra 40%, vasárnap 50%, ünnepnap 125%, 12.24. 14 órától, 12.25–26. és 05.01. 150%, 12.31. 14 órától 125%). A Kinderfreibetrag csak az egyházi adót és a Soli-t érinti, ezt nem számolja. A bérpapír a mérvadó.</small></details></div>`}
+function setB(k,v){D.bp={...(D.bp||{}),[k]:BNUM.includes(k)?num(v):BBOOL.includes(k)?(v?1:0):v};save();$('#pr').innerHTML=payRes()}
 
 /* ---------- Fényképek ---------- */
 const ph=()=>`<h2>Fényképek</h2><div class="card row"><select onchange="PM=+this.value;loadPh()">${opts(MO,PM)}</select><select onchange="PY=+this.value;loadPh()">${opts(YR,PY)}</select></div>
@@ -303,6 +441,7 @@ function prof(){const M=MC||noMC('');
  <p><small>Google-fiók → Biztonság → Kétlépcsős azonosítás be → Alkalmazásjelszavak → új jelszó</small></p>
  ${M.has_pass?'<p>✔ A jelszó el van mentve</p><button class="r" onclick="delPass()">Jelszó törlése</button>':'<p><input id="mp" type="password" placeholder="Alkalmazásjelszó"></p><button onclick="savePass()">Jelszó mentése és kipróbálása</button>'}</div>
  <div class="card"><button onclick="sendPrev()">Előző hónap küldése most</button></div>
+ <div class="card"><button class="g" onclick="logout()">Kilépés</button></div>
  ${[['routes','Mentett útvonalak'],['lkw','Mentett LKW számok'],['kenn','Mentett Kennzeichen']].map(([k,t])=>`<div class="card"><h3>${t}</h3>${D[k].map((x,i)=>`<div class="row" style="justify-content:space-between;margin:4px 0">${esc(x)}<button class="r" onclick="del('${k}',${i})">✕</button></div>`).join('')||'<i>üres</i>'}</div>`).join('')}`}
 function del(k,i){D[k].splice(i,1);D.lt=Date.now();save();draw()}
 
