@@ -125,7 +125,7 @@ const b64=d=>d.output('datauristring').split(',')[1];
 const dl=k=>D[k].map(x=>`<option value="${esc(x)}">`).join('');
 
 /* ---------- Logó (vízjel) és impresszum a PDF-eken ---------- */
-const LOGO_FILE='logo.png',LOGO_H=34,LOGO_W=LOGO_H*221/248,LOGO_OP=.10,LOGO_X=6,LOGO_Y=3;
+const LOGO_FILE='logo.png',LOGO_H=16,LOGO_W=LOGO_H*221/248,LOGO_OP=.045,LOGO_X=15,LOGO_Y=3.5;
 const CREDIT='Erstellt von Vivien\'s Creative Mind',SITE='www.vivienscreativemind.com',SITE_URL='https://www.vivienscreativemind.com';
 let LOGO=null;
 async function loadLogo(){try{const r=await fetch(LOGO_FILE);if(!r.ok)return;const b=await r.blob();
