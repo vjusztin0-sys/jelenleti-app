@@ -37,16 +37,29 @@ canvas{background:#fff;border-radius:8px;width:100%;max-width:400px;touch-action
 #ov .row{justify-content:center}
 html,body{max-width:100%;overflow-x:hidden}
 #app{min-height:100vh;min-height:100dvh}
+/* ünnepnapok: piros sor a jelenléti/tankolási íven */
+tr.hd td{background:#3a1515;color:#ff6b6b;font-weight:700}
+.nt{border-color:#a33;background:#2a1414}
+/* naptár */
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.ch{text-align:center;font-size:12px;color:#9aa8a0;padding:2px 0}
+.cd{min-height:64px;background:#1b1f1d;border:1px solid #2a2f2c;border-radius:8px;padding:4px;font-size:13px;overflow:hidden}
+.cd.e{background:transparent;border:0}.cd.we{color:#7d8a83}
+.cd small{display:block;font-size:10px;line-height:1.15;margin-top:2px;overflow-wrap:anywhere}
+.cd.hn{background:#4a1a1a;border-color:#a33;color:#ff7b7b}
+.cd.hs{background:#4a3414;border-color:#c98a2a;color:#ffb347}
+.cd.td{outline:2px solid #4caf7a}
 @media(max-width:700px){
 #app{display:block;min-height:0}
 nav{position:fixed;left:0;right:0;bottom:0;z-index:5;width:auto;flex-direction:row;gap:4px;padding:6px 6px calc(6px + env(safe-area-inset-bottom));border-right:0;border-top:1px solid #2a2f2c}
 nav b{display:none}
-nav button{flex:1 1 0;min-width:0;padding:10px 2px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+nav button{flex:1 1 0;min-width:0;padding:10px 2px;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 nav .lo{display:none}.ll{display:none}.ls{display:inline}
 main{padding:14px 12px calc(84px + env(safe-area-inset-bottom))}
 .big{gap:10px}.big button{padding:28px 6px;font-size:17px}
 .fab{bottom:calc(84px + env(safe-area-inset-bottom));right:14px}
 .pg{grid-template-columns:repeat(2,minmax(0,1fr))}
+.cd{min-height:52px;padding:3px}.cd small{font-size:8px}
 }
 </style></head><body><div id="app"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -66,6 +79,7 @@ MO=MON.map((x,i)=>[i,x]),YR=[...Array(12)].map((_,i)=>[2024+i,2024+i]),DY=[...Ar
 const LEG='K= Krank  U=Urlaub  A=Abholung';
 let cur=LS.vd_cur,D,S,V='home',NT='p',tmr,st,base=null,ch=null,MC=null;
 let UID,PK,PM=new Date().getMonth(),PY=new Date().getFullYear(),PH={};
+let CM=new Date().getMonth(),CY=new Date().getFullYear();
 const HUM=['januar','februar','marcius','aprilis','majus','junius','julius','augusztus','szeptember','oktober','november','december'];
 const SD='<rect x="2" y="8" width="36" height="22"/><path d="M38 30V14h10l10 10v6z"/><circle cx="14" cy="32" r="5"/><circle cx="48" cy="32" r="5"/>';
 const SL=[['elolrol','Elölről'],['balrol','Bal oldal'],['jobbrol','Jobb oldal'],['hatulrol','Hátulról'],['lenyitva','Lenyitva'],['forgalmi','Forgalmi'],['homero','Hőmérő'],['baleset','Baleset / Nem várt események'],['egyeb','Egyéb dok.']];
@@ -181,11 +195,11 @@ function go(v){V=v;draw();if(v=='ph')loadPh()}
 
 function draw(){if(!cur)return login();
  const c=V=='e'?S.t:V=='n'?NT:V;
- $('#app').innerHTML=`<nav><b>Workplace</b>${[['home','Kezdőlap'],['p','Jelenléti'],['t','Tankolás'],['ph','Fényképek'],['b','Bérszámfejtés','Bér'],['prof','Profil']].map(([k,t,sh])=>`<button class="${c==k?'':'g'}" onclick="go('${k}')"><span class="ll">${t}</span><span class="ls">${sh||t}</span></button>`).join('')}<button class="g lo" onclick="logout()">Kilépés</button></nav><main>${V=='home'?home():V=='p'||V=='t'?list(V):V=='n'?nv():V=='e'?edit():V=='ph'?ph():V=='b'?ber():prof()}</main>`;
+ $('#app').innerHTML=`<nav><b>Workplace</b>${[['home','Kezdőlap'],['p','Jelenléti'],['t','Tankolás'],['cal','Naptár'],['ph','Fényképek'],['b','Bérszámfejtés','Bér'],['prof','Profil']].map(([k,t,sh])=>`<button class="${c==k?'':'g'}" onclick="go('${k}')"><span class="ll">${t}</span><span class="ls">${sh||t}</span></button>`).join('')}<button class="g lo" onclick="logout()">Kilépés</button></nav><main>${V=='home'?home():V=='p'||V=='t'?list(V):V=='n'?nv():V=='e'?edit():V=='ph'?ph():V=='b'?ber():V=='cal'?cal():prof()}</main>`;
  if(V=='e')initSig()}
 const home=()=>`<h2>Szia${D.name?', '+esc(D.name):''}!</h2><div class="big"><button onclick="go('p')">Jelenléti</button><button onclick="go('t')">Tankolás</button><button onclick="go('ph')">Fényképek</button><button onclick="go('b')">Bérszámfejtés</button></div>`;
 function list(t){const a=D.sheets.filter(s=>s.t==t).sort((a,b)=>b.y*12+b.m-a.y*12-a.m);
- return `<h2>${t=='p'?'Jelenléti ívek':'Tankolási ívek'}</h2><div class="row" style="margin-bottom:12px"><button class="g" onclick="$('#imp').click()">Import (${t=='p'?'jelenléti':'tankolási'} PDF)</button><input id="imp" type="file" accept="application/pdf" hidden onchange="imp(this,'${t}')"></div>${a.map(s=>`<div class="card row" style="justify-content:space-between"><span>${MON[s.m]} ${s.y}</span><span><button onclick="op(${s.id})">Megnyitás</button> <button class="r" onclick="rm(${s.id})">✕</button></span></div>`).join('')||'<i>Még nincs ív</i>'}<button class="fab" onclick="NT='${t}';go('n')">+</button>`}
+ return `<h2>${t=='p'?'Jelenléti ívek':'Tankolási ívek'}</h2>${t=='p'?soon():''}<div class="row" style="margin-bottom:12px"><button class="g" onclick="$('#imp').click()">Import (${t=='p'?'jelenléti':'tankolási'} PDF)</button><input id="imp" type="file" accept="application/pdf" hidden onchange="imp(this,'${t}')"></div>${a.map(s=>`<div class="card row" style="justify-content:space-between"><span>${MON[s.m]} ${s.y}</span><span><button onclick="op(${s.id})">Megnyitás</button> <button class="r" onclick="rm(${s.id})">✕</button></span></div>`).join('')||'<i>Még nincs ív</i>'}<button class="fab" onclick="NT='${t}';go('n')">+</button>`}
 function op(id){S=D.sheets.find(s=>s.id==id);go('e')}
 function rm(id){if(!confirm('Törlöd az ívet?'))return;const x=D.sheets.find(s=>s.id==id);if(x)(D.del=D.del||{})[sk(x)]=Date.now();D.sheets=D.sheets.filter(s=>s.id!=id);save();draw()}
 const nv=()=>{const n=new Date();return `<h2>Új ív</h2><div class="card row"><select id="nm">${opts(MO,n.getMonth())}</select><select id="ny">${opts(YR,n.getFullYear())}</select><button onclick="mkNew()">Létrehozás</button><button class="g" onclick="go('${NT}')">Mégse</button></div>`};
@@ -196,13 +210,14 @@ function mkNew(){const m=+$('#nm').value,y=+$('#ny').value;
 
 const I=(d,f,w,l)=>`<td><input data-d="${d}" data-f="${f}" value="${esc(w[f])}"${l?` list="dl-${f}"`:''}></td>`;
 const Sl=(d,f,w,o)=>`<td><select data-d="${d}" data-f="${f}">${opts(o,w[f]||'')}</select></td>`;
-function edit(){const f=S.t=='t';let r='';
- for(let d=1;d<=31;d++){const x=S.rows[d]||{};
-  r+=`<tr><td>${d}</td>`+(f?I(d,'l',x,1)+I(d,'n',x,1)+I(d,'k',x)+I(d,'i',x)+I(d,'a',x)
+function edit(){const f=S.t=='t',HH=holidays(S.y,bp().bl),nd=new Date(S.y,S.m+1,0).getDate(),hl=[];let r='';
+ for(let d=1;d<=31;d++){const x=S.rows[d]||{},h=d<=nd?HH[S.m+'-'+d]:'';if(h)hl.push(d+'. '+hn(h));
+  r+=`<tr${h?` class="hd" title="${esc(h)}"`:''}><td>${d}</td>`+(f?I(d,'l',x,1)+I(d,'n',x,1)+I(d,'k',x)+I(d,'i',x)+I(d,'a',x)
    :Sl(d,'b',x,TO)+Sl(d,'e',x,TO)+Sl(d,'p',x,PA)+`<td id="du${d}">${fmt(dur(x))}</td>`+Sl(d,'x',x,ST)+I(d,'r',x,1)+I(d,'s',x))+'</tr>'}
  const H=f?['Nr.','TOUR/LKW NUMMER','Kennzeichen','Km Stand','Liter','AdBlue']:['Tag','Beginn (Uhrzeit)','Ende (Uhrzeit)','Pause','Dauer','*','Reiseweg','Spesen €'];
- return `<datalist id="dl-r">${dl('routes')}</datalist><datalist id="dl-l">${dl('lkw')}</datalist><datalist id="dl-n">${dl('kenn')}</datalist>
+ return `${S.t=='p'?soon():''}<datalist id="dl-r">${dl('routes')}</datalist><datalist id="dl-l">${dl('lkw')}</datalist><datalist id="dl-n">${dl('kenn')}</datalist>
  <div class="card row"><b>${f?'Tankolás':'E&V GmbH'}</b><label>NAME <input id="nm" value="${esc(S.name)}"></label><label>MONAT <select id="sm">${opts(MO,S.m)}</select></label><label>JAHR <select id="sy">${opts(YR,S.y)}</select></label></div>
+ ${hl.length?`<div class="card nt">Ünnepnap ebben a hónapban (${esc(bln())}): <b>${esc(hl.join(', '))}</b><br><small>A tartomány a Naptár fülön állítható.</small></div>`:''}
  <div class="wrap card"><table><tr>${H.map(h=>`<th>${h}</th>`).join('')}</tr>${r}</table></div>
  ${f?'':`<div class="card">Summe: <b id="tot">${fmt(tot(S))}</b> &nbsp; <small>* ${LEG}</small></div>`}
  <div class="card">Unterschrift des Arbeitnehmers:<br><canvas id="sg"></canvas><br><br><button class="g" onclick="clearSig()">Aláírás törlése</button></div>
@@ -216,7 +231,7 @@ document.addEventListener('change',ev=>{const t=ev.target;if(!S||V!='e')return;
   if(L&&v&&!D[L].includes(v)){D[L].push(v);D.lt=Date.now();$('#dl-'+f).innerHTML=dl(L)}
   if('bep'.includes(f)){$('#du'+d).textContent=fmt(dur(S.rows[d]));const o=$('#tot');if(o)o.textContent=fmt(tot(S))}}
  else return;
- touch()});
+ touch();if(t.id=='sm'||t.id=='sy')draw()});
 function touch(){if(S&&V=='e')S.ts=Date.now();save()}
 
 // Ende: üres mezőre kattintva az aktuális idő (5 percre kerekítve)
@@ -234,7 +249,8 @@ function initSig(){const c=$('#sg'),x=c.getContext('2d');c.width=400;c.height=13
  c.onpointerup=()=>{dn=0;S.sig=D.sig=c.toDataURL();touch()}}
 function clearSig(){const c=$('#sg');c.getContext('2d').clearRect(0,0,c.width,c.height);S.sig='';touch()}
 
-function mk(s){const{jsPDF}=window.jspdf,d=new jsPDF(),f=s.t=='t',A=x=>String(x??'').replace(/ő/g,'ö').replace(/ű/g,'ü').replace(/Ő/g,'Ö').replace(/Ű/g,'Ü');
+function mk(s){const{jsPDF}=window.jspdf,d=new jsPDF(),f=s.t=='t',A=x=>String(x??'').replace(/ő/g,'ö').replace(/ű/g,'ü').replace(/Ő/g,'Ö').replace(/Ű/g,'Ü'),
+  HH=holidays(s.y,bp().bl),nd=new Date(s.y,s.m+1,0).getDate();
  d.setFont('helvetica','bold').setFontSize(10);d.rect(15,12,180,12);
  /* vízjel: halvány logó a dátum mögött (a szöveg előtt rajzolva, a dátum közepére igazítva) */
  if(LOGO){const dw=d.getTextWidth('MONAT/JAHR: '+MON[s.m]+' '+s.y);
@@ -246,7 +262,9 @@ function mk(s){const{jsPDF}=window.jspdf,d=new jsPDF(),f=s.t=='t',A=x=>String(x?
   rows.push(f?[i,w.l||'',w.n||'',w.k||'',w.i||'',w.a||'']:[i,w.b||'',w.e||'',w.p||'',fmt(dur(w)),w.x||'',A(w.r),w.s||''])}
  d.autoTable({startY:26,margin:{left:15,right:15},theme:'grid',
   head:[f?['Nr.','TOUR/LKW NUMMER','Kennzeichen','Km Stand','Liter','AdBlue']:['Tag','Beginn (Uhrzeit)','Ende (Uhrzeit)','Pause','Dauer','*','Reiseweg','Spesen €']],body:rows,
-  styles:{fontSize:8,cellPadding:1,lineColor:0,lineWidth:.2,textColor:0,halign:'center',minCellHeight:5.5},headStyles:{fillColor:255,textColor:0,fontStyle:'bold'}});
+  styles:{fontSize:8,cellPadding:1,lineColor:0,lineWidth:.2,textColor:0,halign:'center',minCellHeight:5.5},headStyles:{fillColor:255,textColor:0,fontStyle:'bold'},
+  /* ünnepnapok: halvány piros sor, piros napszám */
+  didParseCell:h=>{if(h.section=='body'){const i=h.row.index+1;if(i<=nd&&HH[s.m+'-'+i]){h.cell.styles.fillColor=[255,226,226];if(h.column.index==0){h.cell.styles.textColor=[200,0,0];h.cell.styles.fontStyle='bold'}}}}});
  let y=d.lastAutoTable.finalY+7;
  if(!f){d.setFontSize(9).text('Summe: '+fmt(tot(s)),15,y);d.setFont('helvetica','normal').setFontSize(7).text('* '+LEG,70,y);y+=8}
  d.setFont('helvetica','bold').setFontSize(9).text('Unterschrift des Arbeitnehmers:',15,y);
@@ -285,8 +303,35 @@ function holidays(y,bl){const H={},E0=easter(y),add=(dt,n)=>{H[dt.getMonth()+'-'
  if(bl=='TH')set(8,20,'Weltkindertag');
  if(['BB','MV','SN','ST','TH','HB','HH','NI','SH'].includes(bl))set(9,31,'Reformationstag');
  if(['BW','BY','NW','RP','SL'].includes(bl))set(10,1,'Allerheiligen');
+ if(bl=='BB'){add(E0,'Ostersonntag');add(addD(E0,49),'Pfingstsonntag')}
  if(bl=='SN'){let d=new Date(y,10,22);while(d.getDay()!=3)d=addD(d,-1);add(d,'Buß- und Bettag')}
  return H}
+
+/* ---------- Naptár + ünnepnap-figyelmeztetés ---------- */
+const HN={'Neujahr':'Újév','Karfreitag':'Nagypéntek','Ostersonntag':'Húsvétvasárnap','Ostermontag':'Húsvéthétfő','Tag der Arbeit':'Munka ünnepe','Christi Himmelfahrt':'Áldozócsütörtök','Pfingstsonntag':'Pünkösdvasárnap','Pfingstmontag':'Pünkösdhétfő','Tag der Deutschen Einheit':'Német egység napja','1. Weihnachtstag':'Karácsony első napja','2. Weihnachtstag':'Karácsony második napja','Heilige Drei Könige':'Vízkereszt','Internationaler Frauentag':'Nemzetközi nőnap','Fronleichnam':'Úrnapja','Mariä Himmelfahrt':'Nagyboldogasszony','Weltkindertag':'Gyermeknap','Reformationstag':'Reformáció napja','Allerheiligen':'Mindenszentek','Buß- und Bettag':'Bűnbánat és imádság napja'};
+const HWD=['vasárnap','hétfő','kedd','szerda','csütörtök','péntek','szombat'];
+const hn=n=>n+(HN[n]?' ('+HN[n]+')':'');
+const fd=(y,m,d)=>y+'. '+p2(m+1)+'. '+p2(d)+'.';
+const bln=()=>{const b=bp().bl;return(BLS.find(x=>x[0]==b)||[0,b])[1]};
+/* az ünnepnap előtt 1 héttel (ma..+7 nap) figyelmeztetés; az országos és a tartományi ünnepet megkülönbözteti */
+function soon(){const P=bp(),t=new Date(),t0=new Date(t.getFullYear(),t.getMonth(),t.getDate()),C={},o=[];
+ for(let i=0;i<=7;i++){const dt=addD(t0,i),y=dt.getFullYear(),k=dt.getMonth()+'-'+dt.getDate(),c=C[y]||(C[y]={a:holidays(y,P.bl),n:holidays(y,'')});
+  if(c.a[k])o.push(`${i==0?'Ma':i==1?'Holnap':i+' nap múlva'}: <b>${fd(y,dt.getMonth(),dt.getDate())} (${HWD[dt.getDay()]})</b> ünnepnap: <b>${esc(hn(c.a[k]))}</b> <small>(${c.n[k]?'országos':'tartományi, '+esc(bln())})</small>`)}
+ return o.length?`<div class="card nt">🔔 ${o.join('<br>🔔 ')}</div>`:''}
+function cm(dl){CM+=dl;if(CM<0){CM=11;CY--}else if(CM>11){CM=0;CY++}draw()}
+function cal(){const P=bp(),H=holidays(CY,P.bl),N=holidays(CY,''),n=new Date(CY,CM+1,0).getDate(),off=(new Date(CY,CM,1).getDay()+6)%7,t=new Date();
+ let c=['H','K','Sze','Cs','P','Szo','V'].map(x=>`<div class="ch">${x}</div>`).join('')+'<div class="cd e"></div>'.repeat(off);
+ for(let d=1;d<=n;d++){const k=CM+'-'+d,g=new Date(CY,CM,d).getDay(),h=H[k],td=t.getFullYear()==CY&&t.getMonth()==CM&&t.getDate()==d;
+  c+=`<div class="cd${g==0||g==6?' we':''}${h?(N[k]?' hn':' hs'):''}${td?' td':''}"><b>${d}</b>${h?`<small>${esc(h)}</small>`:''}</div>`}
+ const L=Object.keys(H).map(k=>{const[m,d]=k.split('-').map(Number);return{m,d,n:H[k],a:!!N[k]}}).sort((a,b)=>a.m-b.m||a.d-b.d)
+  .map(x=>`<div class="sm"><span>${fd(CY,x.m,x.d)} (${HWD[new Date(CY,x.m,x.d).getDay()]})</span><span style="text-align:right;color:${x.a?'#ff7b7b':'#ffb347'}">${esc(hn(x.n))}<br><small>${x.a?'országos':'tartományi'}</small></span></div>`).join('');
+ return `<h2>Naptár</h2>${soon()}
+ <div class="card row"><button class="g" onclick="cm(-1)">‹</button><select onchange="CM=+this.value;draw()">${opts(MO,CM)}</select><select onchange="CY=+this.value;draw()">${opts(YR,CY)}</select><button class="g" onclick="cm(1)">›</button>
+ <label>Tartomány <select onchange="setB('bl',this.value);draw()">${opts(BLS,P.bl)}</select></label></div>
+ <div class="card"><div class="cal">${c}</div>
+ <p><small><span style="color:#ff7b7b">■</span> országos ünnepnap &nbsp; <span style="color:#ffb347">■</span> tartományi ünnepnap (${esc(bln())}) &nbsp; <span style="color:#4caf7a">□</span> ma</small></p></div>
+ <div class="card"><h3>Ünnepnapok ${CY} (${esc(bln())})</h3>${L}
+ <p><small>Csak a törvényes, tartományszintű ünnepnapok szerepelnek, helyi ünnepek nélkül.${P.bl=='BY'?' Bajorországban a Mariä Himmelfahrt (aug. 15.) csak a túlnyomórészt katolikus településeken ünnepnap, az augsburgi Friedensfest (aug. 8.) csak Augsburgban, ezért ezek nincsenek benne.':''}</small></p></div>`}
 
 /* § 3b EStG: a nap százalékos pótléka (vasárnap 50, ünnep 125, 150: 12.25/26 és 05.01; 12.24 14 órától 150, 12.31 14 órától 125) */
 function dayPct(date,H,tod){const g=date.getDay(),m=date.getMonth(),d=date.getDate();let p=g==0?50:0;
@@ -388,7 +433,7 @@ function ber(){const P=bp(),o=(a,s)=>a.map(([v,t])=>`<option value="${v}"${v==s?
  <p><label><input type="checkbox" ${P.satH?'checked':''} onchange="setB('satH',this.checked)"> A szombati órák is órabéresek (alapból: csak a fix összeg)</label></p>
  <p><label><input type="checkbox" ${P.hol?'checked':''} onchange="setB('hol',this.checked)"> Hétköznapra eső ünnepnap fizetett, ha nem dolgoztál</label></p>
  <small>Becslés. Alapok: Lohnsteuer a 2026-os BMF programablaufplan (§ 32a EStG tarifa, Vorsorgepauschale, Pauschbeträge) szerint, pótlékok a § 3b EStG szerint (éjszaka 20–06: 25%, éjfél előtt kezdett műszaknál 0–4 óra 40%, vasárnap 50%, ünnepnap 125%, 12.24. 14 órától, 12.25–26. és 05.01. 150%, 12.31. 14 órától 125%). A Kinderfreibetrag csak az egyházi adót és a Soli-t érinti, ezt nem számolja. A bérpapír a mérvadó.</small></details></div>`}
-function setB(k,v){D.bp={...(D.bp||{}),[k]:BNUM.includes(k)?num(v):BBOOL.includes(k)?(v?1:0):v};save();$('#pr').innerHTML=payRes()}
+function setB(k,v){D.bp={...(D.bp||{}),[k]:BNUM.includes(k)?num(v):BBOOL.includes(k)?(v?1:0):v};save();const o=$('#pr');if(o)o.innerHTML=payRes()}
 
 /* ---------- Fényképek ---------- */
 const ph=()=>`<h2>Fényképek</h2><div class="card row"><select onchange="PM=+this.value;loadPh()">${opts(MO,PM)}</select><select onchange="PY=+this.value;loadPh()">${opts(YR,PY)}</select></div>
