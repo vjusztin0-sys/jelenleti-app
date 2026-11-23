@@ -124,6 +124,13 @@ const uid=()=>D.id,fn=s=>(s.t=='p'?'jelenleti':'tankolas')+'_'+s.y+'-'+p2(s.m+1)
 const b64=d=>d.output('datauristring').split(',')[1];
 const dl=k=>D[k].map(x=>`<option value="${esc(x)}">`).join('');
 
+/* ---------- Logó (vízjel) és impresszum a PDF-eken ---------- */
+const LOGO_FILE='logo.png',LOGO_H=34,LOGO_W=LOGO_H*221/248,LOGO_OP=.10,LOGO_X=6,LOGO_Y=3;
+const CREDIT='Erstellt von Vivien\'s Creative Mind',SITE='www.vivienscreativemind.com',SITE_URL='https://www.vivienscreativemind.com';
+let LOGO=null;
+async function loadLogo(){try{const r=await fetch(LOGO_FILE);if(!r.ok)return;const b=await r.blob();
+ LOGO=await new Promise((ok,no)=>{const f=new FileReader();f.onload=()=>ok(f.result);f.onerror=no;f.readAsDataURL(b)})}catch(e){}}
+
 /* ---------- e-mail küldés (a Supabase send-mail függvényen keresztül, a felhasználó saját Gmailjéről) ---------- */
 const gm=x=>/^[^\s@]+@(gmail|googlemail)\.com$/i.test(x),em=x=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x);
 const noMC=u=>({user_id:u,sender_email:'',recipient_email:'',auto:false,day:1,has_pass:false});
@@ -240,6 +247,16 @@ function mk(s){const{jsPDF}=window.jspdf,d=new jsPDF(),f=s.t=='t',A=x=>String(x?
  if(!f){d.setFontSize(9).text('Summe: '+fmt(tot(s)),15,y);d.setFont('helvetica','normal').setFontSize(7).text('* '+LEG,70,y);y+=8}
  d.setFont('helvetica','bold').setFontSize(9).text('Unterschrift des Arbeitnehmers:',15,y);
  if(s.sig)d.addImage(s.sig,'PNG',15,y+2,50,16);
+ /* vízjel: halvány logó a bal felső sarokban (az első oldalon, a tartalom fölé rajzolva, alig látható átlátszósággal) */
+ if(LOGO){d.setPage(1);d.saveGraphicsState();d.setGState(new d.GState({opacity:LOGO_OP}));
+  d.addImage(LOGO,'PNG',LOGO_X,LOGO_Y,LOGO_W,LOGO_H);d.restoreGraphicsState()}
+ /* impresszum a jobb alsó sarokban, minden oldalon */
+ const pw=d.internal.pageSize.getWidth(),ph=d.internal.pageSize.getHeight(),txt=CREDIT+'  |  '+SITE;
+ for(let pg=1;pg<=d.getNumberOfPages();pg++){d.setPage(pg);
+  d.setFont('helvetica','normal').setFontSize(7).setTextColor(150,150,150);
+  d.text(txt,pw-15,ph-8,{align:'right'});
+  const w=d.getTextWidth(txt);d.link(pw-15-w,ph-8-3,w,4,{url:SITE_URL});
+  d.setTextColor(0,0,0)}
  return d}
 
 /* ---------- Bérszámfejtés (a havi jelenléti ívből számol; becslés a német szabályok szerint) ---------- */
@@ -446,5 +463,6 @@ function prof(){const M=MC||noMC('');
 function del(k,i){D[k].splice(i,1);D.lt=Date.now();save();draw()}
 
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+loadLogo();
 sb.auth.getSession().then(({data})=>{const u=data.session?.user.email.split('@')[0];u?load(u):(cur=null,draw())});
 </script></body></html>
