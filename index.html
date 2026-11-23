@@ -125,7 +125,7 @@ const b64=d=>d.output('datauristring').split(',')[1];
 const dl=k=>D[k].map(x=>`<option value="${esc(x)}">`).join('');
 
 /* ---------- Logó (vízjel) és impresszum a PDF-eken ---------- */
-const LOGO_FILE='logo.png',LOGO_H=16,LOGO_W=LOGO_H*221/248,LOGO_OP=.10,LOGO_X=15,LOGO_Y=3.5;
+const LOGO_FILE='logo.png',LOGO_H=16,LOGO_W=LOGO_H*221/248,LOGO_OP=.10;
 const CREDIT='Erstellt von Vivien\'s Creative Mind',SITE='www.vivienscreativemind.com',SITE_URL='https://www.vivienscreativemind.com';
 let LOGO=null;
 async function loadLogo(){try{const r=await fetch(LOGO_FILE);if(!r.ok)return;const b=await r.blob();
@@ -236,6 +236,10 @@ function clearSig(){const c=$('#sg');c.getContext('2d').clearRect(0,0,c.width,c.
 
 function mk(s){const{jsPDF}=window.jspdf,d=new jsPDF(),f=s.t=='t',A=x=>String(x??'').replace(/ő/g,'ö').replace(/ű/g,'ü').replace(/Ő/g,'Ö').replace(/Ű/g,'Ü');
  d.setFont('helvetica','bold').setFontSize(10);d.rect(15,12,180,12);
+ /* vízjel: halvány logó a dátum mögött (a szöveg előtt rajzolva, a dátum közepére igazítva) */
+ if(LOGO){const dw=d.getTextWidth('MONAT/JAHR: '+MON[s.m]+' '+s.y);
+  d.saveGraphicsState();d.setGState(new d.GState({opacity:LOGO_OP}));
+  d.addImage(LOGO,'PNG',192-dw/2-LOGO_W/2,18-LOGO_H/2,LOGO_W,LOGO_H);d.restoreGraphicsState()}
  if(!f)d.text('E&V GmbH',18,19);
  d.text('NAME: '+A(s.name),f?18:55,19);d.text('MONAT/JAHR: '+MON[s.m]+' '+s.y,192,19,{align:'right'});
  const rows=[];for(let i=1;i<=31;i++){const w=s.rows[i]||{};
@@ -247,9 +251,6 @@ function mk(s){const{jsPDF}=window.jspdf,d=new jsPDF(),f=s.t=='t',A=x=>String(x?
  if(!f){d.setFontSize(9).text('Summe: '+fmt(tot(s)),15,y);d.setFont('helvetica','normal').setFontSize(7).text('* '+LEG,70,y);y+=8}
  d.setFont('helvetica','bold').setFontSize(9).text('Unterschrift des Arbeitnehmers:',15,y);
  if(s.sig)d.addImage(s.sig,'PNG',15,y+2,50,16);
- /* vízjel: halvány logó a bal felső sarokban (az első oldalon, a tartalom fölé rajzolva, alig látható átlátszósággal) */
- if(LOGO){d.setPage(1);d.saveGraphicsState();d.setGState(new d.GState({opacity:LOGO_OP}));
-  d.addImage(LOGO,'PNG',LOGO_X,LOGO_Y,LOGO_W,LOGO_H);d.restoreGraphicsState()}
  /* impresszum a jobb alsó sarokban, minden oldalon */
  const pw=d.internal.pageSize.getWidth(),ph=d.internal.pageSize.getHeight(),txt=CREDIT+'  |  '+SITE;
  for(let pg=1;pg<=d.getNumberOfPages();pg++){d.setPage(pg);
