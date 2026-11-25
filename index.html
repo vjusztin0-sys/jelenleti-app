@@ -1,17 +1,17 @@
 <!DOCTYPE html>
 <html lang="hu"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Workplace</title><link rel="manifest" href="manifest.json"><meta name="theme-color" content="#1e5a3a"><link rel="icon" href="icon.svg">
+<title>Workplace</title><link rel="manifest" href="manifest.json"><meta name="theme-color" content="#1e5a3a"><link rel="icon" href="icon.svg"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
 *{box-sizing:border-box}body{margin:0;font:15px system-ui,sans-serif;background:#0d0f0e;color:#e6ece8}
 #app{display:flex;min-height:100vh}
 nav{width:190px;background:#161a18;padding:14px;display:flex;flex-direction:column;gap:8px;border-right:1px solid #2a2f2c}
 nav b{color:#4caf7a;margin-bottom:10px}
-button,select,input{font:inherit;color:inherit;background:#23282a;border:1px solid #3a413d;border-radius:8px;padding:8px 10px}
+button,select,input,textarea{font:inherit;color:inherit;background:#23282a;border:1px solid #3a413d;border-radius:8px;padding:8px 10px}
 option{background:#23282a}
 button{cursor:pointer;background:#1e5a3a;border-color:#2e7d4f}button.g{background:#23282a;border-color:#3a413d}button.r{background:#6b2020;border-color:#8a2d2d}
 main{flex:1;padding:18px;overflow:auto;min-width:0}
 .card{background:#1b1f1d;border:1px solid #2a2f2c;border-radius:12px;padding:14px;margin-bottom:12px}
-.card input:not([type=checkbox]){width:100%}
+.card input:not([type=checkbox]){width:100%}.card textarea{width:100%;min-height:60px}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.row input,.row select{width:auto!important}
 .big{display:grid;grid-template-columns:1fr 1fr;gap:14px}.big button{padding:40px 10px;font-size:20px}
 .fab{position:fixed;right:20px;bottom:80px;border-radius:50%;width:56px;height:56px;font-size:28px;padding:0}
@@ -40,6 +40,11 @@ html,body{max-width:100%;overflow-x:hidden}
 /* ünnepnapok: piros sor a jelenléti/tankolási íven */
 tr.hd td{background:#3a1515;color:#ff6b6b;font-weight:700}
 .nt{border-color:#a33;background:#2a1414}
+/* térkép */
+#map{height:55vh;min-height:320px;border-radius:12px;position:relative;z-index:0;border:1px solid #2a2f2c}
+.mk{width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 1px 4px #0008;position:relative}
+.mk::after{content:'';position:absolute;left:6px;top:6px;width:10px;height:10px;border-radius:50%;background:#fff}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px}
 /* naptár */
 .cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
 .ch{text-align:center;font-size:12px;color:#9aa8a0;padding:2px 0}
@@ -51,9 +56,9 @@ tr.hd td{background:#3a1515;color:#ff6b6b;font-weight:700}
 .cd.td{outline:2px solid #4caf7a}
 @media(max-width:700px){
 #app{display:block;min-height:0}
-nav{position:fixed;left:0;right:0;bottom:0;z-index:5;width:auto;flex-direction:row;gap:4px;padding:6px 6px calc(6px + env(safe-area-inset-bottom));border-right:0;border-top:1px solid #2a2f2c}
+nav{overflow-x:auto;position:fixed;left:0;right:0;bottom:0;z-index:5;width:auto;flex-direction:row;gap:4px;padding:6px 6px calc(6px + env(safe-area-inset-bottom));border-right:0;border-top:1px solid #2a2f2c}
 nav b{display:none}
-nav button{flex:1 1 0;min-width:0;padding:10px 2px;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+nav button{flex:1 0 auto;min-width:0;padding:10px 8px;font-size:11px;white-space:nowrap}
 nav .lo{display:none}.ll{display:none}.ls{display:inline}
 main{padding:14px 12px calc(84px + env(safe-area-inset-bottom))}
 .big{gap:10px}.big button{padding:28px 6px;font-size:17px}
@@ -66,6 +71,7 @@ main{padding:14px 12px calc(84px + env(safe-area-inset-bottom))}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 const sb=supabase.createClient('https://mdtfbyusnawqhmyatlxe.supabase.co','sb_publishable_VNDuXu5-9NkohXIanJY-Sw_doqjCuZn');
 const mail=u=>u.toLowerCase().replace(/[^a-z0-9._-]/g,'')+'@vd-app.hu';
@@ -80,6 +86,7 @@ const LEG='K= Krank  U=Urlaub  A=Abholung';
 let cur=LS.vd_cur,D,S,V='home',NT='p',tmr,st,base=null,ch=null,MC=null;
 let UID,PK,PM=new Date().getMonth(),PY=new Date().getFullYear(),PH={};
 let CM=new Date().getMonth(),CY=new Date().getFullYear();
+let TN='',TD=null,TL=[],TUP=null,TERR='',MAP=null,LG=null,MKS={},MV=null,MFIT=false,PINMODE=false,PD=null;
 const HUM=['januar','februar','marcius','aprilis','majus','junius','julius','augusztus','szeptember','oktober','november','december'];
 const SD='<rect x="2" y="8" width="36" height="22"/><path d="M38 30V14h10l10 10v6z"/><circle cx="14" cy="32" r="5"/><circle cx="48" cy="32" r="5"/>';
 const SL=[['elolrol','Elölről'],['balrol','Bal oldal'],['jobbrol','Jobb oldal'],['hatulrol','Hátulról'],['lenyitva','Lenyitva'],['forgalmi','Forgalmi'],['homero','Hőmérő'],['baleset','Baleset / Nem várt események'],['egyeb','Egyéb dok.']];
@@ -191,12 +198,12 @@ async function load(u){const r=await cloud();
  if(!D.id)D.id=rid();
  save();if(ch)sb.removeChannel(ch);listen();await loadMail();V='home';draw()}
 async function logout(){if(ch){sb.removeChannel(ch);ch=null}await sb.auth.signOut();LS.removeItem('vd_cur');cur=null;D=S=MC=null;base=null;draw()}
-function go(v){V=v;draw();if(v=='ph')loadPh()}
+function go(v){V=v;draw();if(v=='ph')loadPh();if(v=='map')mapEnter()}
 
 function draw(){if(!cur)return login();
  const c=V=='e'?S.t:V=='n'?NT:V;
- $('#app').innerHTML=`<nav><b>Workplace</b>${[['home','Kezdőlap'],['p','Jelenléti'],['t','Tankolás'],['cal','Naptár'],['ph','Fényképek'],['b','Bérszámfejtés','Bér'],['prof','Profil']].map(([k,t,sh])=>`<button class="${c==k?'':'g'}" onclick="go('${k}')"><span class="ll">${t}</span><span class="ls">${sh||t}</span></button>`).join('')}<button class="g lo" onclick="logout()">Kilépés</button></nav><main>${V=='home'?home():V=='p'||V=='t'?list(V):V=='n'?nv():V=='e'?edit():V=='ph'?ph():V=='b'?ber():V=='cal'?cal():prof()}</main>`;
- if(V=='e')initSig()}
+ $('#app').innerHTML=`<nav><b>Workplace</b>${[['home','Kezdőlap'],['p','Jelenléti'],['t','Tankolás'],['cal','Naptár'],['map','Térkép'],['ph','Fényképek'],['b','Bérszámfejtés','Bér'],['prof','Profil']].map(([k,t,sh])=>`<button class="${c==k?'':'g'}" onclick="go('${k}')"><span class="ll">${t}</span><span class="ls">${sh||t}</span></button>`).join('')}<button class="g lo" onclick="logout()">Kilépés</button></nav><main>${V=='home'?home():V=='p'||V=='t'?list(V):V=='n'?nv():V=='e'?edit():V=='ph'?ph():V=='b'?ber():V=='cal'?cal():V=='map'?mapv():prof()}</main>`;
+ if(V=='e')initSig();if(V=='map')initMap()}
 const home=()=>`<h2>Szia${D.name?', '+esc(D.name):''}!</h2><div class="big"><button onclick="go('p')">Jelenléti</button><button onclick="go('t')">Tankolás</button><button onclick="go('ph')">Fényképek</button><button onclick="go('b')">Bérszámfejtés</button></div>`;
 function list(t){const a=D.sheets.filter(s=>s.t==t).sort((a,b)=>b.y*12+b.m-a.y*12-a.m);
  return `<h2>${t=='p'?'Jelenléti ívek':'Tankolási ívek'}</h2>${t=='p'?soon():''}<div class="row" style="margin-bottom:12px"><button class="g" onclick="$('#imp').click()">Import (${t=='p'?'jelenléti':'tankolási'} PDF)</button><input id="imp" type="file" accept="application/pdf" hidden onchange="imp(this,'${t}')"></div>${a.map(s=>`<div class="card row" style="justify-content:space-between"><span>${MON[s.m]} ${s.y}</span><span><button onclick="op(${s.id})">Megnyitás</button> <button class="r" onclick="rm(${s.id})">✕</button></span></div>`).join('')||'<i>Még nincs ív</i>'}<button class="fab" onclick="NT='${t}';go('n')">+</button>`}
@@ -434,6 +441,85 @@ function ber(){const P=bp(),o=(a,s)=>a.map(([v,t])=>`<option value="${v}"${v==s?
  <p><label><input type="checkbox" ${P.hol?'checked':''} onchange="setB('hol',this.checked)"> Hétköznapra eső ünnepnap fizetett, ha nem dolgoztál</label></p>
  <small>Becslés. Alapok: Lohnsteuer a 2026-os BMF programablaufplan (§ 32a EStG tarifa, Vorsorgepauschale, Pauschbeträge) szerint, pótlékok a § 3b EStG szerint (éjszaka 20–06: 25%, éjfél előtt kezdett műszaknál 0–4 óra 40%, vasárnap 50%, ünnepnap 125%, 12.24. 14 órától, 12.25–26. és 05.01. 150%, 12.31. 14 órától 125%). A Kinderfreibetrag csak az egyházi adót és a Soli-t érinti, ezt nem számolja. A bérpapír a mérvadó.</small></details></div>`}
 function setB(k,v){D.bp={...(D.bp||{}),[k]:BNUM.includes(k)?num(v):BBOOL.includes(k)?(v?1:0):v};save();const o=$('#pr');if(o)o.innerHTML=payRes()}
+
+/* ---------- Térkép (túraszámonként közös gombostűk, Supabase tábla: vd_tours) ---------- */
+const TY={c:['Cím','#4caf7a'],l:['Lerakóhely','#e5484d'],e:['Egyéb','#4aa3ff']};
+const TYO=Object.entries(TY).map(([k,v])=>[k,v[0]]);
+const mkIcon=t=>L.divIcon({className:'',html:`<div class="mk" style="background:${(TY[t]||TY.c)[1]}"></div>`,iconSize:[26,26],iconAnchor:[13,31],popupAnchor:[0,-30]});
+const navUrl=p=>'https://www.google.com/maps/dir/?api=1&destination='+p.lat+','+p.lng;
+function popHtml(p){const t=TY[p.type]||TY.c;return `<b>${esc(p.label)}</b><br><small>${t[0]}</small>${p.address?'<br>'+esc(p.address):''}${p.note?'<br><i>'+esc(p.note)+'</i>':''}<br><a href="${navUrl(p)}" target="_blank" rel="noopener">Navigáció ↗</a>`}
+const mapErr=e=>alert('Sikertelen: '+(e&&e.message||e));
+
+async function tourList(){const{data,error}=await sb.from('vd_tours').select('tour,updated_at').order('updated_at',{ascending:false});if(error)throw error;TL=data||[]}
+async function tourLoad(no){const{data,error}=await sb.from('vd_tours').select('data,updated_at').eq('tour',no).maybeSingle();if(error)throw error;return data}
+/* mindig a legfrissebb állapotra alkalmazza a módosítást, így a másik felhasználó gombostűi nem íródnak felül */
+async function tourMut(fn){if(!TN)throw Error('Nincs megnyitott túra');
+ const r=await tourLoad(TN),d=r&&r.data&&Array.isArray(r.data.pins)?r.data:{pins:[],note:''};fn(d);
+ const ts=new Date().toISOString(),{error}=await sb.from('vd_tours').upsert({tour:TN,data:d,updated_at:ts,updated_by:cur});
+ if(error)throw error;TD=d;TUP=Date.parse(ts);
+ if(!TL.some(x=>x.tour==TN)){TL.unshift({tour:TN});const s=$('#tsel');if(s)s.innerHTML=tsel()}}
+const tsel=()=>'<option value="">Mentett túrák…</option>'+TL.map(x=>`<option value="${esc(x.tour)}">${esc(x.tour)}</option>`).join('');
+async function mapEnter(){try{await tourList();TERR=''}catch(e){TERR=e.message||String(e)}if(V=='map')draw()}
+async function openTour(){const no=$('#tn').value.trim().toUpperCase();if(!no)return;
+ try{const r=await tourLoad(no);TN=no;TD=r&&r.data&&Array.isArray(r.data.pins)?r.data:{pins:[],note:''};TUP=r?Date.parse(r.updated_at):null;MV=null;MFIT=true;PINMODE=false;draw()}catch(e){mapErr(e)}}
+async function delTour(){if(!confirm('Törlöd a(z) '+TN+' túrát? Mindenki számára törlődik.'))return;
+ try{const{error}=await sb.from('vd_tours').delete().eq('tour',TN);if(error)throw error;TL=TL.filter(x=>x.tour!=TN);TN='';TD=null;MV=null;draw()}catch(e){mapErr(e)}}
+async function saveNote(v){try{await tourMut(d=>{d.note=v})}catch(e){mapErr(e)}}
+
+function pinList(){const P=(TD&&TD.pins)||[];if(!P.length)return '<i>Még nincs gombostű ezen a túrán.</i>';
+ return P.map((p,i)=>{const t=TY[p.type]||TY.c;
+  return `<div class="sm"><span><span class="dot" style="background:${t[1]}"></span><strong>${i+1}. ${esc(p.label)}</strong> <small>${t[0]}</small>${p.address?'<br><small>'+esc(p.address)+'</small>':''}${p.note?'<br><small><i>'+esc(p.note)+'</i></small>':''}</span><span style="white-space:nowrap"><button class="g" style="padding:4px 8px" onclick="focusPin('${p.id}')">🔍</button> <button class="g" style="padding:4px 8px" onclick="pinDlg('${p.id}')">✎</button></span></div>`}).join('')}
+function mapv(){
+ return `<h2>Térkép</h2>${TERR?`<div class="card nt">A közös adatbázis nem érhető el: ${esc(TERR)}<br><small>Létrehoztad a vd_tours táblát a Supabase-ben?</small></div>`:''}
+ <div class="card row"><input id="tn" placeholder="Túraszám" value="${esc(TN)}" onkeydown="if(event.key=='Enter')openTour()"><button onclick="openTour()">Megnyitás</button><select id="tsel" onchange="if(this.value){$('#tn').value=this.value;openTour()}">${tsel()}</select></div>
+ ${TN?`<div class="card"><div class="row" style="justify-content:space-between"><b>Túra: ${esc(TN)}</b><span><small>${TD.pins.length} gombostű</small> <button class="r" style="padding:4px 8px" onclick="delTour()">Túra törlése</button></span></div>
+ <div class="gr" style="margin-top:10px"><label>Cím<input id="ad" placeholder="Utca házszám, PLZ város" onkeydown="if(event.key=='Enter')addAddr()"></label><label>Név<input id="alb" placeholder="(opcionális)"></label><label>Típus<select id="aty">${opts(TYO,'c')}</select></label><label>Megjegyzés<input id="ant"></label></div>
+ <div class="row" style="margin-top:10px"><button onclick="addAddr()">Cím felvétele</button><button id="pm" class="g" onclick="togPin()">📍 Gombostű a térképre</button></div>
+ <p><label>Információk a túráról<br><textarea id="tnote" onchange="saveNote(this.value)">${esc(TD.note)}</textarea></label></p></div>`
+ :`<div class="card"><small>Írd be a túraszámot. Ha még nincs ilyen túra, az első gombostűvel vagy információval létrejön, és onnantól mindenki látja.</small></div>`}
+ <div id="map"></div><div class="card" style="margin-top:12px"><div id="pl">${TN?pinList():''}</div></div>`}
+function initMap(){const el=$('#map');if(!el)return;
+ if(!window.L){el.innerHTML='<div class="card">A térkép nem tölthető be (nincs internet?).</div>';return}
+ try{if(MAP)MAP.remove()}catch(e){}
+ MAP=L.map(el).setView(MV?MV.c:[51.16,10.45],MV?MV.z:6);
+ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(MAP);
+ LG=L.layerGroup().addTo(MAP);
+ MAP.on('moveend',()=>{const c=MAP.getCenter();MV={c:[c.lat,c.lng],z:MAP.getZoom()}});
+ MAP.on('click',e=>{if(PINMODE){PINMODE=false;upPin();pinDlg(null,e.latlng.lat,e.latlng.lng)}});
+ renderPins(MFIT);MFIT=false}
+function renderPins(fit){if(!LG||!MAP)return;LG.clearLayers();MKS={};const bs=[];
+ for(const p of(TD&&TD.pins)||[]){const m=L.marker([p.lat,p.lng],{icon:mkIcon(p.type),draggable:true}).addTo(LG);
+  m.bindPopup(popHtml(p));MKS[p.id]=m;bs.push([p.lat,p.lng]);
+  m.on('dragend',async()=>{const q=m.getLatLng();
+   if(!confirm('Áthelyezed a gombostűt ide?')){renderPins(false);return}
+   try{await tourMut(d=>{const x=d.pins.find(y=>y.id==p.id);if(x){x.lat=q.lat;x.lng=q.lng}})}catch(e){mapErr(e)}
+   renderPins(false)})}
+ if(fit&&bs.length)MAP.fitBounds(bs,{padding:[30,30],maxZoom:14});
+ const l=$('#pl');if(l)l.innerHTML=TN?pinList():''}
+function focusPin(id){const p=TD.pins.find(x=>x.id==id);if(!p||!MAP)return;
+ MAP.setView([p.lat,p.lng],Math.max(MAP.getZoom(),14));if(MKS[id])MKS[id].openPopup();$('#map').scrollIntoView({behavior:'smooth',block:'center'})}
+function upPin(){const b=$('#pm');if(b){b.textContent=PINMODE?'Koppints a térképre…':'📍 Gombostű a térképre';b.className=PINMODE?'':'g'}const m=$('#map');if(m)m.style.cursor=PINMODE?'crosshair':''}
+function togPin(){PINMODE=!PINMODE;upPin();if(PINMODE)$('#map').scrollIntoView({behavior:'smooth',block:'center'})}
+async function addAddr(){const a=$('#ad').value.trim();if(!TN)return alert('Előbb nyiss meg egy túrát.');if(!a)return;
+ try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=de&accept-language=de&q='+encodeURIComponent(a)),j=await r.json();
+  if(!j.length)return alert('Nem találom ezt a címet. Próbáld pontosabban: utca, házszám, irányítószám, város.');
+  const lat=+j[0].lat,lng=+j[0].lon,lb=$('#alb').value.trim(),pin={id:rid(),type:$('#aty').value,label:lb||a.split(',')[0],address:a,note:$('#ant').value.trim(),lat,lng,by:cur};
+  await tourMut(d=>{d.pins.push(pin)});
+  $('#ad').value=$('#alb').value=$('#ant').value='';renderPins(false);if(MAP)MAP.setView([lat,lng],15);if(MKS[pin.id])MKS[pin.id].openPopup()}catch(e){mapErr(e)}}
+function pinDlg(id,lat,lng){const p=id?TD.pins.find(x=>x.id==id):null;if(id&&!p)return;PD={id:id||null,lat:p?p.lat:lat,lng:p?p.lng:lng};
+ const o=document.createElement('div');o.id='ov';
+ o.innerHTML=`<div class="card"><h3>${p?'Gombostű szerkesztése':'Új gombostű'}</h3><p><input id="pl_l" placeholder="Név" value="${esc(p?p.label:'')}"></p><p><select id="pl_t">${opts(TYO,p?p.type:'c')}</select></p><p><input id="pl_a" placeholder="Cím (opcionális)" value="${esc(p?p.address:'')}"></p><p><input id="pl_n" placeholder="Megjegyzés / információ" value="${esc(p?p.note:'')}"></p><div class="row"><button onclick="savePin()">Mentés</button>${p?'<button class="r" onclick="delPin()">Törlés</button>':''}<button class="g" onclick="closeOv()">Mégse</button></div></div>`;
+ document.body.appendChild(o)}
+async function savePin(){const lb=$('#pl_l').value.trim(),ty=$('#pl_t').value,ad=$('#pl_a').value.trim(),nt=$('#pl_n').value.trim(),q=PD;
+ if(!lb&&!ad)return alert('Adj meg egy nevet vagy címet.');
+ try{await tourMut(d=>{if(q.id){const x=d.pins.find(y=>y.id==q.id);if(x){x.label=lb||ad;x.type=ty;x.address=ad;x.note=nt}}
+   else d.pins.push({id:rid(),type:ty,label:lb||ad,address:ad,note:nt,lat:q.lat,lng:q.lng,by:cur})});
+  closeOv();renderPins(false)}catch(e){mapErr(e)}}
+async function delPin(){if(!confirm('Törlöd a gombostűt?'))return;const q=PD;
+ try{await tourMut(d=>{d.pins=d.pins.filter(x=>x.id!=q.id)});closeOv();renderPins(false)}catch(e){mapErr(e)}}
+/* közös térkép: más felhasználó változtatásai 15 mp-en belül megjelennek */
+setInterval(async()=>{if(V!='map'||!TN||document.hidden||$('#ov'))return;
+ try{const r=await tourLoad(TN);if(r&&r.data&&Array.isArray(r.data.pins)&&Date.parse(r.updated_at)!==TUP){TD=r.data;TUP=Date.parse(r.updated_at);renderPins(false);const n=$('#tnote');if(n&&document.activeElement!==n)n.value=TD.note||''}}catch(e){}},15000);
 
 /* ---------- Fényképek ---------- */
 const ph=()=>`<h2>Fényképek</h2><div class="card row"><select onchange="PM=+this.value;loadPh()">${opts(MO,PM)}</select><select onchange="PY=+this.value;loadPh()">${opts(YR,PY)}</select></div>
