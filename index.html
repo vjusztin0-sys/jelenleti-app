@@ -78,7 +78,10 @@ main{padding:14px 12px calc(84px + env(safe-area-inset-bottom))}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
+let RECOV=/type=recovery/.test(location.hash),UE='',CO=[],COERR='',REG=false;
 const sb=supabase.createClient('https://mdtfbyusnawqhmyatlxe.supabase.co','sb_publishable_VNDuXu5-9NkohXIanJY-Sw_doqjCuZn');
+sb.auth.onAuthStateChange(ev=>{if(ev=='PASSWORD_RECOVERY'){RECOV=true;draw()}});
+const uname=u=>(u.user_metadata&&u.user_metadata.username)||u.email.split('@')[0];
 const mail=u=>u.toLowerCase().replace(/[^a-z0-9._-]/g,'')+'@vd-app.hu';
 pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -150,6 +153,28 @@ const DICT={
 '✔ A jelszó el van mentve':['✔ The password is saved','✔ Das Passwort ist gespeichert'],'Jelszó törlése':['Delete password','Passwort löschen'],'Alkalmazásjelszó':['App password','App-Passwort'],'Jelszó mentése és kipróbálása':['Save and test password','Passwort speichern und testen'],
 'Előző hónap küldése most':['Send previous month now','Vormonat jetzt senden'],'Mentett útvonalak':['Saved routes','Gespeicherte Routen'],'Mentett LKW számok':['Saved LKW numbers','Gespeicherte LKW-Nummern'],'Mentett Kennzeichen':['Saved license plates','Gespeicherte Kennzeichen'],'üres':['empty','leer']
 };
+Object.assign(DICT,{
+'Elfelejtett jelszó':['Forgot password','Passwort vergessen'],
+'Felhasználónév vagy e-mail':['Username or email','Benutzername oder E-Mail'],
+'E-mail (csak regisztrációhoz)':['Email (sign-up only)','E-Mail (nur zur Registrierung)'],
+'Új jelszó beállítása':['Set new password','Neues Passwort festlegen'],
+'Új jelszó':['New password','Neues Passwort'],
+'Új jelszó még egyszer':['New password again','Neues Passwort wiederholen'],
+'Adj meg érvényes e-mail címet.':['Enter a valid email address.','Gib eine gültige E-Mail-Adresse an.'],
+'Add meg az e-mail címedet, erre küldjük a jelszó-visszaállító linket:':['Enter your email address; we will send the password reset link to it:','Gib deine E-Mail-Adresse an; dorthin senden wir den Link zum Zurücksetzen:'],
+'Ha ez az e-mail cím regisztrálva van, elküldtük a jelszó-visszaállító linket.':['If this email address is registered, we have sent the password reset link.','Wenn diese E-Mail-Adresse registriert ist, haben wir den Link zum Zurücksetzen gesendet.'],
+'A jelszó legalább 6 karakter legyen.':['The password must be at least 6 characters.','Das Passwort muss mindestens 6 Zeichen haben.'],
+'A két jelszó nem egyezik.':['The two passwords do not match.','Die beiden Passwörter stimmen nicht überein.'],
+'Az új jelszó mentve.':['The new password is saved.','Das neue Passwort ist gespeichert.'],
+'Erősítsd meg az e-mail címedet a levélben kapott linkkel, utána lépj be.':['Confirm your email address with the link in the email, then log in.','Bestätige deine E-Mail-Adresse mit dem Link in der E-Mail und melde dich dann an.'],
+'A link lejárt vagy érvénytelen, kérj újat.':['The link has expired or is invalid; request a new one.','Der Link ist abgelaufen oder ungültig; fordere einen neuen an.'],
+'E-mail cím (erre jön a jelszó-visszaállító link)':['Email address (the password reset link is sent here)','E-Mail-Adresse (hierhin kommt der Link zum Zurücksetzen)'],'Erre a címre jön a jelszó-visszaállító link is.':['The password reset link is also sent to this address.','An diese Adresse wird auch der Link zum Zurücksetzen gesendet.'],
+'E-mail cím mentése':['Save email address','E-Mail-Adresse speichern'],
+'Az elfelejtett jelszóhoz valódi e-mail cím kell. Mentés után ezzel is be tudsz lépni.':['A real email address is needed for password reset. After saving, you can also log in with it.','Für das Zurücksetzen des Passworts wird eine echte E-Mail-Adresse benötigt. Nach dem Speichern kannst du dich auch damit anmelden.'],
+'Mentve. Ha a rendszer megerősítést kér, kattints a levélben kapott linkre.':['Saved. If asked to confirm, click the link in the email.','Gespeichert. Falls eine Bestätigung verlangt wird, klicke auf den Link in der E-Mail.'],
+'Cég':['Company','Firma'],'Cég hozzáadása':['Add company','Firma hinzufügen'],'Új cég neve':['New company name','Name der neuen Firma'],
+'Törlöd a céget a közös listából? Mindenki számára törlődik.':['Delete the company from the shared list? It will be deleted for everyone.','Firma aus der gemeinsamen Liste löschen? Sie wird für alle gelöscht.']
+});
 const RULES=[
 [/^Szia(.*)!$/,'Hi$1!','Hallo$1!'],
 [/^(🔔 )Ma:/,'$1Today:','$1Heute:'],[/^(🔔 )Holnap:/,'$1Tomorrow:','$1Morgen:'],[/^(🔔 )(\d+) nap múlva:/,'$1In $2 days:','$1In $2 Tagen:'],
@@ -167,6 +192,7 @@ const RULES=[
 [/^Túra: (.*)$/,'Tour: $1','Tour: $1'],[/^(\d+) gombostű$/,'$1 pins','$1 Pins'],
 [/^Törlöd a\(z\) (.*) túrát\? Mindenki számára törlődik\.$/,'Delete tour $1? It will be deleted for everyone.','Tour $1 löschen? Sie wird für alle gelöscht.'],
 [/^A közös adatbázis nem érhető el: /,'The shared database is not available: ','Die gemeinsame Datenbank ist nicht erreichbar: '],
+[/^A közös cégek listája nem érhető el: /,'The shared company list is not available: ','Die gemeinsame Firmenliste ist nicht erreichbar: '],
 [/^Írd be a túraszámot\.[\s\S]*$/,'Enter the tour number. If the tour does not exist yet, it is created with the first pin or note, and from then on everyone can see it.','Gib die Tour-Nr. ein. Gibt es die Tour noch nicht, wird sie mit dem ersten Pin oder der ersten Information angelegt und ist dann für alle sichtbar.'],
 [/^Órabér: (.+) óra × (.+)$/,'Hourly wage: $1 h × $2','Stundenlohn: $1 Std. × $2'],
 [/^023 SFN pflichtig \(szabadság éjszakai pótléka, (\d+) nap\)$/,'023 SFN pflichtig (night surcharge for vacation, $1 days)','023 SFN pflichtig (Nachtzuschlag für Urlaub, $1 Tage)'],
@@ -259,6 +285,7 @@ const dur=w=>(!w||!w.b||!w.e)?null:Math.max(0,(mi(w.e)-mi(w.b)+1440)%1440-(+w.p|
 const fmt=m=>m==null?'':Math.floor(m/60)+':'+p2(m%60);
 const tot=s=>{let t=0;for(const k in s.rows)t+=dur(s.rows[k])||0;return t};
 const uid=()=>D.id,fn=s=>(s.t=='p'?'jelenleti':'tankolas')+'_'+s.y+'-'+p2(s.m+1);
+const co=s=>s.company!==undefined?s.company:(D.company||'');
 const b64=d=>d.output('datauristring').split(',')[1];
 const dl=k=>D[k].map(x=>`<option value="${esc(x)}">`).join('');
 
@@ -287,6 +314,8 @@ async function saveMailCfg(){
  if(a&&!hp)return alert('Az automatikus küldéshez előbb mentsd el az alkalmazásjelszót.');
  const{error}=await sb.from('vd_mail').upsert({user_id:MC.user_id,sender_email:s,recipient_email:r,auto:a,day:d,has_pass:hp});
  if(error)return alert(error.message);
+ if(!hasMail()&&gm(s)){const{error:e2}=await sb.auth.updateUser({email:s,data:{username:cur}},{emailRedirectTo:location.origin+location.pathname});
+  if(e2)alert(e2.message);else{const{data:{user}}=await sb.auth.getUser();UE=user.email}}
  await loadMail();draw();alert('Mentve.')}
 async function savePass(){const p=$('#mp').value.trim();
  if(!p)return alert('Írd be az alkalmazásjelszót.');
@@ -300,29 +329,54 @@ async function sendSheet(){
  clearTimeout(st);await push();
  try{const r=await call({y:S.y,m:S.m});alert(`Elküldve (${r.sent} ív, ${r.photos} kép) ide: ${r.to}`)}catch(e){alert(e.message)}}
 
-function login(){$('#app').innerHTML=`<main style="max-width:380px;margin:auto"><div class="card"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><h2 style="color:#4caf7a;margin:0">Workplace</h2>${lsel()}</div><p><input id="u" placeholder="Felhasználónév"></p><p><input id="p" type="password" placeholder="Jelszó (min. 6 karakter)"></p><div class="row"><button onclick="auth(0)">Belépés</button><button class="g" onclick="auth(1)">Regisztráció</button></div></div></main>`}
-async function auth(reg){const u=$('#u').value.trim(),p=$('#p').value;
+/* ---------- belépés, regisztráció, elfelejtett jelszó ---------- */
+function login(){$('#app').innerHTML=`<main style="max-width:380px;margin:auto"><div class="card"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><h2 style="color:#4caf7a;margin:0">Workplace</h2>${lsel()}</div><p><input id="u" placeholder="${REG?'Felhasználónév':'Felhasználónév vagy e-mail'}" autocomplete="username"></p>${REG?'<p><input id="e" type="email" placeholder="E-mail cím (erre jön a jelszó-visszaállító link)" autocomplete="email"></p>':''}<p><input id="p" type="password" placeholder="Jelszó (min. 6 karakter)" autocomplete="${REG?'new-password':'current-password'}"></p><div class="row">${REG?'<button onclick="auth(1)">Regisztráció</button><button class="g" onclick="REG=false;draw()">Mégse</button>':'<button onclick="auth(0)">Belépés</button><button class="g" onclick="REG=true;draw()">Regisztráció</button>'}</div>${REG?'':'<p><button class="g" onclick="forgot()">Elfelejtett jelszó</button></p>'}</div></main>`}
+async function auth(reg){const u=$('#u').value.trim(),p=$('#p').value,e=reg?$('#e').value.trim().toLowerCase():'';
  if(!u||!p)return alert('Töltsd ki mindkét mezőt');
- const r=reg?await sb.auth.signUp({email:mail(u),password:p}):await sb.auth.signInWithPassword({email:mail(u),password:p});
- if(r.error)return alert(r.error.message);
- await load(u)}
+ let r;
+ if(reg){if(!em(e))return alert('Adj meg érvényes e-mail címet.');
+  r=await sb.auth.signUp({email:e,password:p,options:{data:{username:u}}});
+  if(r.error)return alert(r.error.message);
+  if(!r.data.session)return alert('Erősítsd meg az e-mail címedet a levélben kapott linkkel, utána lépj be.')}
+ else{r=await sb.auth.signInWithPassword({email:u.includes('@')?u.toLowerCase():mail(u),password:p});
+  if(r.error)return alert(r.error.message)}
+ REG=false;
+ await load(reg||!u.includes('@')?u:uname(r.data.user));
+ if(reg&&gm(e)){try{await sb.from('vd_mail').upsert({user_id:UID,sender_email:e,recipient_email:'',auto:false,day:1,has_pass:false});await loadMail();if(V=='prof')draw()}catch(x){}}}
+async function forgot(){let e=$('#u').value.trim();
+ if(!e.includes('@'))e=(prompt(tr('Add meg az e-mail címedet, erre küldjük a jelszó-visszaállító linket:'))||'').trim();
+ e=e.toLowerCase();if(!e)return;
+ if(!em(e))return alert('Adj meg érvényes e-mail címet.');
+ const{error}=await sb.auth.resetPasswordForEmail(e,{redirectTo:location.origin+location.pathname});
+ if(error)return alert(error.message);
+ alert('Ha ez az e-mail cím regisztrálva van, elküldtük a jelszó-visszaállító linket.')}
+function newpass(){$('#app').innerHTML=`<main style="max-width:380px;margin:auto"><div class="card"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><h2 style="color:#4caf7a;margin:0">Új jelszó beállítása</h2>${lsel()}</div><p><input id="n1" type="password" placeholder="Új jelszó" autocomplete="new-password"></p><p><input id="n2" type="password" placeholder="Új jelszó még egyszer" autocomplete="new-password"></p><div class="row"><button onclick="setPass()">Mentés</button></div></div></main>`}
+async function setPass(){const a=$('#n1').value,b=$('#n2').value;
+ if(a.length<6)return alert('A jelszó legalább 6 karakter legyen.');
+ if(a!==b)return alert('A két jelszó nem egyezik.');
+ const{error}=await sb.auth.updateUser({password:a});
+ if(error)return alert(error.message);
+ RECOV=false;history.replaceState(null,'',location.pathname+location.search);
+ const{data}=await sb.auth.getSession(),u=data.session&&data.session.user;
+ if(!u){cur=null;return draw()}
+ alert('Az új jelszó mentve.');await load(uname(u))}
 async function load(u){const r=await cloud();
  if(!r)return alert('Sikertelen belépés vagy nincs kapcsolat');
- cur=u;LS.vd_cur=u;UID=r.user.id;
+ cur=u;LS.vd_cur=u;UID=r.user.id;UE=r.user.email;
  const loc=LS['vd_d_'+u]?JSON.parse(LS['vd_d_'+u]):null;
  if(r.row?.data?.sheets){D=loc?merge(r.row.data,loc):r.row.data;base=Date.parse(r.row.updated_at)}
  else{D=loc||blank();base=null}
  if(!D.id)D.id=rid();
  if(!LS.vd_lang&&D.lang&&D.lang!=LANG)applyLang(D.lang);
  save();if(ch)sb.removeChannel(ch);listen();await loadMail();V='home';draw()}
-async function logout(){if(ch){sb.removeChannel(ch);ch=null}await sb.auth.signOut();LS.removeItem('vd_cur');cur=null;D=S=MC=null;base=null;draw()}
-function go(v){V=v;draw();if(v=='ph')loadPh();if(v=='map')mapEnter()}
+async function logout(){if(ch){sb.removeChannel(ch);ch=null}await sb.auth.signOut();LS.removeItem('vd_cur');cur=null;D=S=MC=null;base=null;REG=false;draw()}
+function go(v){V=v;draw();if(v=='ph')loadPh();if(v=='map')mapEnter();if(v=='prof')loadCo()}
 
-function draw(){if(!cur)return login();
+function draw(){if(RECOV)return newpass();if(!cur)return login();
  const c=V=='e'?S.t:V=='n'?NT:V;
  $('#app').innerHTML=`<nav><div class="nh"><b>Workplace</b>${lsel()}</div>${[['home','Kezdőlap'],['p','Jelenléti'],['t','Tankolás'],['cal','Naptár'],['map','Térkép'],['ph','Fényképek'],['b','Bérszámfejtés','Bér'],['prof','Profil']].map(([k,t,sh])=>`<button class="${c==k?'':'g'}" onclick="go('${k}')"><span class="ll">${t}</span><span class="ls">${sh||t}</span></button>`).join('')}<button class="g lo" onclick="logout()">Kilépés</button></nav><main><div class="mh"><b>Workplace</b>${lsel()}</div>${V=='home'?home():V=='p'||V=='t'?list(V):V=='n'?nv():V=='e'?edit():V=='ph'?ph():V=='b'?ber():V=='cal'?cal():V=='map'?mapv():prof()}</main>`;
  if(V=='e')initSig();if(V=='map')initMap()}
-const home=()=>`<h2>Szia${D.name?', '+esc(D.name):''}!</h2><div class="big"><button onclick="go('p')">Jelenléti</button><button onclick="go('t')">Tankolás</button><button onclick="go('ph')">Fényképek</button><button onclick="go('b')">Bérszámfejtés</button></div>`;
+const home=()=>`<h2>Szia${D.name?', '+esc(D.name):''}!</h2><div class="big"><button onclick="go('p')">Jelenléti</button><button onclick="go('t')">Tankolás</button><button onclick="go('ph')">Fényképek</button></div>`;
 function list(t){const a=D.sheets.filter(s=>s.t==t).sort((a,b)=>b.y*12+b.m-a.y*12-a.m);
  return `<h2>${t=='p'?'Jelenléti ívek':'Tankolási ívek'}</h2>${t=='p'?soon():''}<div class="row" style="margin-bottom:12px"><button class="g" onclick="$('#imp').click()">Import (${t=='p'?'jelenléti':'tankolási'} PDF)</button><input id="imp" type="file" accept="application/pdf" hidden onchange="imp(this,'${t}')"></div>${a.map(s=>`<div class="card row" style="justify-content:space-between"><span>${ML(s.m)} ${s.y}</span><span><button onclick="op(${s.id})">Megnyitás</button> <button class="r" onclick="rm(${s.id})">✕</button></span></div>`).join('')||'<i>Még nincs ív</i>'}<button class="fab" onclick="NT='${t}';go('n')">+</button>`}
 function op(id){S=D.sheets.find(s=>s.id==id);go('e')}
@@ -330,7 +384,7 @@ function rm(id){if(!confirm('Törlöd az ívet?'))return;const x=D.sheets.find(s
 const nv=()=>{const n=new Date();return `<h2>Új ív</h2><div class="card row"><select id="nm">${opts(MO,n.getMonth())}</select><select id="ny">${opts(YR,n.getFullYear())}</select><button onclick="mkNew()">Létrehozás</button><button class="g" onclick="go('${NT}')">Mégse</button></div>`};
 function mkNew(){const m=+$('#nm').value,y=+$('#ny').value;
  S=D.sheets.find(s=>s.t==NT&&s.m==m&&s.y==y);
- if(!S){S={id:Date.now(),t:NT,y,m,name:D.name,rows:{},sig:D.sig||'',ts:Date.now()};D.sheets.push(S);save()}
+ if(!S){S={id:Date.now(),t:NT,y,m,name:D.name,company:D.company||'',rows:{},sig:D.sig||'',ts:Date.now()};D.sheets.push(S);save()}
  go('e')}
 
 const I=(d,f,w,l)=>`<td><input data-d="${d}" data-f="${f}" value="${esc(w[f])}"${l?` list="dl-${f}"`:''}></td>`;
@@ -341,7 +395,7 @@ function edit(){const f=S.t=='t',HH=holidays(S.y,bp().bl),nd=new Date(S.y,S.m+1,
    :Sl(d,'b',x,TO)+Sl(d,'e',x,TO)+Sl(d,'p',x,PA)+`<td id="du${d}">${fmt(dur(x))}</td>`+Sl(d,'x',x,ST)+I(d,'r',x,1)+I(d,'s',x))+'</tr>'}
  const H=f?['Nr.','TOUR/LKW NUMMER','Kennzeichen','Km Stand','Liter','AdBlue']:['Tag','Beginn (Uhrzeit)','Ende (Uhrzeit)','Pause','Dauer','*','Reiseweg','Spesen €'];
  return `${S.t=='p'?soon():''}<datalist id="dl-r">${dl('routes')}</datalist><datalist id="dl-l">${dl('lkw')}</datalist><datalist id="dl-n">${dl('kenn')}</datalist>
- <div class="card row"><b>${f?'Tankolás':'E&V GmbH'}</b><label>NAME <input id="nm" value="${esc(S.name)}"></label><label>MONAT <select id="sm">${opts(MO,S.m)}</select></label><label>JAHR <select id="sy">${opts(YR,S.y)}</select></label></div>
+ <div class="card row"><b>${f?'Tankolás':'Jelenléti'}</b>${co(S)?`<b>${esc(co(S))}</b>`:''}<label>NAME <input id="nm" value="${esc(S.name)}"></label><label>MONAT <select id="sm">${opts(MO,S.m)}</select></label><label>JAHR <select id="sy">${opts(YR,S.y)}</select></label></div>
  ${hl.length?`<div class="card nt">Ünnepnap ebben a hónapban (${esc(bln())}): <b>${esc(hl.join(', '))}</b><br><small>A tartomány a Naptár fülön állítható.</small></div>`:''}
  <div class="wrap card"><table><tr>${H.map(h=>`<th>${h}</th>`).join('')}</tr>${r}</table></div>
  ${f?'':`<div class="card">Summe: <b id="tot">${fmt(tot(S))}</b> &nbsp; <small>* ${LEG}</small></div>`}
@@ -381,8 +435,8 @@ function mk(s){const{jsPDF}=window.jspdf,d=new jsPDF(),f=s.t=='t',A=x=>String(x?
  if(LOGO){const dw=d.getTextWidth('MONAT/JAHR: '+MON[s.m]+' '+s.y);
   d.saveGraphicsState();d.setGState(new d.GState({opacity:LOGO_OP}));
   d.addImage(LOGO,'PNG',192-dw/2-LOGO_W/2,18-LOGO_H/2,LOGO_W,LOGO_H);d.restoreGraphicsState()}
- if(!f)d.text('E&V GmbH',18,19);
- d.text('NAME: '+A(s.name),f?18:55,19);d.text('MONAT/JAHR: '+MON[s.m]+' '+s.y,192,19,{align:'right'});
+ const cn=A(co(s));if(cn)d.text(cn,18,19);
+ d.text('NAME: '+A(s.name),cn?18+d.getTextWidth(cn)+8:18,19);d.text('MONAT/JAHR: '+MON[s.m]+' '+s.y,192,19,{align:'right'});
  const rows=[];for(let i=1;i<=31;i++){const w=s.rows[i]||{};
   rows.push(f?[i,w.l||'',w.n||'',w.k||'',w.i||'',w.a||'']:[i,w.b||'',w.e||'',w.p||'',fmt(dur(w)),w.x||'',A(w.r),w.s||''])}
  d.autoTable({startY:26,margin:{left:15,right:15},theme:'grid',
@@ -498,17 +552,26 @@ function taxes(SB,P){
   soli=Math.floor(soliJ*100/12)/100,kr=(P.bl=='BW'||P.bl=='BY')?8:9,kst=P.kirche?r2(lst*kr/100):0;
  return{lst,kst,soli,kv,rv,av,pv,zve,vsp,kr,kvr,pvr}}
 
+/* szabadság/beteg/ünnep napi óraszáma: az előző 3 hónap átlaga (§ 11 BUrlG), szombat nélkül */
+function refAvg(){let s=0,c=0;
+ for(let k=1;k<=3;k++){const dt=new Date(BY,BM-k,1),y=dt.getFullYear(),m=dt.getMonth(),sh=D.sheets.find(x=>x.t=='p'&&x.y==y&&x.m==m);
+  if(!sh)continue;const n=new Date(y,m+1,0).getDate();
+  for(let d=1;d<=n;d++){const w=sh.rows[d]||{};if(!(w.b&&w.e)||new Date(y,m,d).getDay()==6)continue;s+=dur(w)||0;c++}}
+ return c?s/c:0}
+
 function calcB(){
  const P=bp(),n=new Date(BY,BM+1,0).getDate(),H=holidays(BY,P.bl),sh=D.sheets.find(s=>s.t=='p'&&s.y==BY&&s.m==BM),rows=sh?sh.rows:{},days=[];
  for(let d=1;d<=n;d++){const w=rows[d]||{},g=new Date(BY,BM,d).getDay(),worked=!!(w.b&&w.e);
   days.push({d,g,w,worked,mins:worked?dur(w):0,st:w.x||'',hol:H[BM+'-'+d]||''})}
- const pool=days.filter(x=>x.worked&&x.g!=6),avg=pool.length?pool.reduce((a,x)=>a+x.mins,0)/pool.length:480,avgMin=P.vh>0?P.vh*60:avg;
- let pm=0,sp=0,nSp=0,nSat=0,uD=0,gr=0;const S5={n25:0,n40:0,s50:0,h125:0,h150:0};
+ const pool=days.filter(x=>x.worked&&x.g!=6),cavg=pool.length?pool.reduce((a,x)=>a+x.mins,0)/pool.length:0,ravg=refAvg(),
+  avgMin=P.vh>0?P.vh*60:(ravg||cavg||480),
+  avgSrc=P.vh>0?L3('beállított érték','set value','eingestellter Wert'):ravg?L3('előző 3 hónap átlaga','average of the previous 3 months','Durchschnitt der letzten 3 Monate'):cavg?L3('a hónap átlaga','average of this month','Durchschnitt dieses Monats'):L3('alapérték','default','Standardwert');
+ let pm=0,sp=0,nSp=0,nSat=0,uD=0,nK=0,nF=0,gr=0;const S5={n25:0,n40:0,s50:0,h125:0,h150:0};
  for(const x of days){const wk=x.g>=1&&x.g<=5;let pmin=0;x.kind='';
   if(x.worked){x.kind='w';pmin=(x.g==6&&!P.satH)?0:x.mins}
+  else if(wk&&x.hol&&P.hol&&x.st!='A'){x.kind='F';pmin=avgMin;nF++}
   else if(wk&&x.st=='U'){x.kind='U';pmin=avgMin;uD++}
-  else if(wk&&x.st=='K'){x.kind='K';pmin=avgMin}
-  else if(wk&&x.hol&&P.hol&&!x.st){x.kind='F';pmin=avgMin}
+  else if(wk&&x.st=='K'){x.kind='K';pmin=avgMin;nK++}
   x.pmin=pmin;pm+=pmin;x.gross=pmin/60*P.hr;gr+=x.gross;
   x.sp=(x.worked&&x.g!=6)?P.sp:0;sp+=x.sp;if(x.sp)nSp++;
   x.sat=(x.worked&&x.g==6)?P.satnet:0;if(x.sat)nSat++;
@@ -518,7 +581,7 @@ function calcB(){
  const tx=taxes(SB,P),ded=tx.lst+tx.kst+tx.soli+tx.kv+tx.rv+tx.av+tx.pv,rt=SB>0?ded/SB:0;
  for(const x of days){x.net=x.gross*(1-rt)+x.sat;x.tot=x.net+x.sp}
  const gesamt=SB+sp+surT,netto=gesamt-ded,satT=nSat*P.satnet;
- return{P,days,sh,pm,gr,sfnP,SB,sp,nSp,nSat,uD,S5,A,surT,tx,ded,gesamt,netto,satT,payout:netto+satT,avgMin,sumNet:days.reduce((a,x)=>a+x.net,0),sumTot:days.reduce((a,x)=>a+x.tot,0)}}
+ return{P,days,sh,pm,gr,sfnP,SB,sp,nSp,nSat,uD,nK,nF,nW:wc,avgSrc,S5,A,surT,tx,ded,gesamt,netto,satT,payout:netto+satT,avgMin,sumNet:days.reduce((a,x)=>a+x.net,0),sumTot:days.reduce((a,x)=>a+x.tot,0)}}
 
 function payRes(){const c=calcB(),P=c.P,L=(t,v,b)=>`<div class="sm"><span>${t}</span><b>${v}</b></div>`;
  const rowsH=c.days.map(x=>{const lab=x.worked?fmt(x.mins):(x.kind=='U'?'U':x.kind=='K'?'K':x.kind=='F'?'Ü':x.st);
@@ -530,6 +593,7 @@ function payRes(){const c=calcB(),P=c.P,L=(t,v,b)=>`<div class="sm"><span>${t}</
  <tr class="tt"><td>Σ</td><td>${hh(c.pm)}</td><td>${Cu(c.gr)}</td><td>${Cu(c.sumNet)}</td><td>${Cu(c.sp)}</td><td>${Cu(c.sumTot)}</td></tr></table>
  <small>★ ünnepnap (a kiválasztott Bundesland szerint). U szabadság, K beteg, Ü fizetett ünnepnap: ezeken a nap a hónap átlagos óraszámával fizetett. Szombat: fix nettó összeg, órabér nélkül. A napi nettó a havi levonások arányából számolt. Az éjszakai és a vasárnapi/ünnepi pótlék, valamint az SFN pflichtig csak lent adódik hozzá.</small></div>
  <div class="card"><h3>Havi összesítés (bérpapír szerint)</h3>
+ <p><small>${L3(`Napok: munka ${c.nW} (ebből szombat ${c.nSat}), szabadság ${c.uD}, beteg ${c.nK}, fizetett ünnepnap ${c.nF}. Szabadság/beteg/ünnep napi óraszáma: ${hh(c.avgMin)} (${c.avgSrc}).`,`Days: worked ${c.nW} (of which Saturday ${c.nSat}), vacation ${c.uD}, sick ${c.nK}, paid public holiday ${c.nF}. Hours per vacation/sick/holiday day: ${hh(c.avgMin)} (${c.avgSrc}).`,`Tage: gearbeitet ${c.nW} (davon Samstag ${c.nSat}), Urlaub ${c.uD}, krank ${c.nK}, bezahlter Feiertag ${c.nF}. Stunden pro Urlaubs-/Krankheits-/Feiertag: ${hh(c.avgMin)} (${c.avgSrc}).`)}</small></p>
  ${L('Órabér: '+hh(c.pm)+' óra × '+Eu(P.hr),Eu(c.gr))}
  ${c.sfnP?L('023 SFN pflichtig (szabadság éjszakai pótléka, '+c.uD+' nap)',Eu(c.sfnP)):''}
  ${L('<b>Steuer-/SV-Brutto</b>','<b>'+Eu(c.SB)+'</b>')}
@@ -693,14 +757,30 @@ async function imp(inp,want){const f=inp.files[0];inp.value='';if(!f)return;
    if(Object.keys(w).length)rows[d]=w}
   const y=+my[2],nm=(top.match(/NAME:\s*(.*?)\s*MONAT\/JAHR:/)||[])[1]||'',old=D.sheets.find(s=>s.t==t&&s.m==m&&s.y==y);
   if(old&&!confirm(`Már van ${ML(m)} ${y} ív, felülírod az importtal?`))return;
-  S={id:old?old.id:Date.now(),t,y,m,name:nm||D.name,rows,sig:old?old.sig:(D.sig||''),ts:Date.now()};
+  S={id:old?old.id:Date.now(),t,y,m,name:nm||D.name,company:(top.match(/^(.*?)\s*NAME:/)||[])[1]||'',rows,sig:old?old.sig:(D.sig||''),ts:Date.now()};
   D.sheets=D.sheets.filter(s=>!(s.t==t&&s.m==m&&s.y==y));D.sheets.push(S);save();go('e')}
  catch(e){alert('Az import nem sikerült. Csak az alkalmazás által készített jelenléti/tankolási PDF olvasható be.')}}
 
+/* ---------- Profil: cég (közös lista), bejelentkezési e-mail ---------- */
+const hasMail=()=>UE&&!/@vd-app\.hu$/i.test(UE);
+const coOpts=()=>{const n=CO.map(x=>x.name);if(D.company&&!n.includes(D.company))n.push(D.company);return '<option value="">–</option>'+n.map(x=>`<option value="${esc(x)}"${x==D.company?' selected':''}>${esc(x)}</option>`).join('')};
+async function loadCo(){try{const{data,error}=await sb.from('vd_companies').select('id,name,created_by').order('name');if(error)throw error;CO=data||[];COERR=''}catch(e){COERR=e.message||String(e)}if(V=='prof')draw()}
+async function addCo(){const n=$('#cn').value.trim();if(!n)return;
+ const x=CO.find(y=>y.name.toLowerCase()==n.toLowerCase());
+ if(!x){const{error}=await sb.from('vd_companies').insert({name:n});if(error)return alert(error.message)}
+ D.company=x?x.name:n;save();await loadCo()}
+async function delCo(id){const x=CO.find(y=>y.id==id);if(!x||!confirm('Törlöd a céget a közös listából? Mindenki számára törlődik.'))return;
+ const{error}=await sb.from('vd_companies').delete().eq('id',id);if(error)return alert(error.message);
+ if(D.company==x.name){D.company='';save()}await loadCo()}
+
 function prof(){const M=MC||noMC('');
  return `<h2>Profil</h2><div class="card"><label>Teljes név<br><input value="${esc(D.name)}" onchange="D.name=this.value.trim();save()"></label></div>
+ <div class="card"><h3>Cég</h3>${COERR?`<div class="card nt">A közös cégek listája nem érhető el: ${esc(COERR)}</div>`:''}
+ <p><select onchange="D.company=this.value;save()">${coOpts()}</select></p>
+ <div class="row"><input id="cn" placeholder="Új cég neve" onkeydown="if(event.key=='Enter')addCo()"><button onclick="addCo()">Cég hozzáadása</button></div>
+ ${CO.map(x=>`<div class="row" style="justify-content:space-between;margin:4px 0">${esc(x.name)}${x.created_by===UID?`<button class="r" onclick="delCo('${x.id}')">✕</button>`:''}</div>`).join('')}</div>
  <div class="card"><h3>E-mail küldés (saját Gmail)</h3>
- <p><label>Saját Gmail-cím (erről megy a levél)<br><input id="ms" value="${esc(M.sender_email)}"></label></p>
+ <p><label>Saját Gmail-cím (erről megy a levél)<br><input id="ms" value="${esc(M.sender_email)}"></label><br><small>Erre a címre jön a jelszó-visszaállító link is.</small></p>
  <p><label>Fogadó e-mail cím<br><input id="mr" value="${esc(M.recipient_email)}"></label></p>
  <p><label><input type="checkbox" id="ma" ${M.auto?'checked':''}> Automatikus küldés havonta, ennyedikén: <select id="md">${opts(DY,M.day)}</select></label></p>
  <button onclick="saveMailCfg()">Mentés</button></div>
@@ -714,5 +794,7 @@ function del(k,i){D[k].splice(i,1);D.lt=Date.now();save();draw()}
 
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 loadLogo();
-sb.auth.getSession().then(({data})=>{const u=data.session?.user.email.split('@')[0];u?load(u):(cur=null,draw())});
+sb.auth.getSession().then(({data})=>{
+ if(/error_code=otp_expired|error=access_denied/.test(location.hash)){history.replaceState(null,'',location.pathname+location.search);alert('A link lejárt vagy érvénytelen, kérj újat.')}
+ const u=data.session?.user;if(RECOV)return draw();u?load(uname(u)):(cur=null,draw())});
 </script></body></html>
