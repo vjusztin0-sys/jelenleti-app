@@ -172,7 +172,9 @@ Object.assign(DICT,{
 'Az elfelejtett jelszóhoz valódi e-mail cím kell. Mentés után ezzel is be tudsz lépni.':['A real email address is needed for password reset. After saving, you can also log in with it.','Für das Zurücksetzen des Passworts wird eine echte E-Mail-Adresse benötigt. Nach dem Speichern kannst du dich auch damit anmelden.'],
 'Mentve. Ha a rendszer megerősítést kér, kattints a levélben kapott linkre.':['Saved. If asked to confirm, click the link in the email.','Gespeichert. Falls eine Bestätigung verlangt wird, klicke auf den Link in der E-Mail.'],
 'Cég':['Company','Firma'],'Cég hozzáadása':['Add company','Firma hinzufügen'],'Új cég neve':['New company name','Name der neuen Firma'],
-'Törlöd a céget a közös listából? Mindenki számára törlődik.':['Delete the company from the shared list? It will be deleted for everyone.','Firma aus der gemeinsamen Liste löschen? Sie wird für alle gelöscht.']
+'Törlöd a céget a közös listából? Mindenki számára törlődik.':['Delete the company from the shared list? It will be deleted for everyone.','Firma aus der gemeinsamen Liste löschen? Sie wird für alle gelöscht.'],
+'Ez a felhasználónév már foglalt.':['This username is already taken.','Dieser Benutzername ist bereits vergeben.'],'A felhasználónév nem tartalmazhat @ jelet.':['The username cannot contain an @ sign.','Der Benutzername darf kein @-Zeichen enthalten.'],
+'Alapbér € (havi)':['Base pay € (monthly)','Grundlohn € (monatlich)'],'Alapbér óraszáma':['Base pay hours','Grundlohn-Stunden']
 });
 const RULES=[
 [/^Szia(.*)!$/,'Hi$1!','Hallo$1!'],
@@ -193,6 +195,9 @@ const RULES=[
 [/^A közös adatbázis nem érhető el: /,'The shared database is not available: ','Die gemeinsame Datenbank ist nicht erreichbar: '],
 [/^A közös cégek listája nem érhető el: /,'The shared company list is not available: ','Die gemeinsame Firmenliste ist nicht erreichbar: '],
 [/^Írd be a túraszámot\.[\s\S]*$/,'Enter the tour number. If the tour does not exist yet, it is created with the first pin or note, and from then on everyone can see it.','Gib die Tour-Nr. ein. Gibt es die Tour noch nicht, wird sie mit dem ersten Pin oder der ersten Information angelegt und ist dann für alle sichtbar.'],
+[/^Alapbér: (.+) óra$/,'Base pay: $1 h','Grundlohn: $1 Std.'],
+[/^Túlóra: (.+) óra × (.+)$/,'Overtime: $1 h × $2','Überstunden: $1 Std. × $2'],
+[/^Szabadság\/beteg: (\d+) nap × (.+) óra × (.+)$/,'Vacation/sick: $1 days × $2 h × $3','Urlaub/krank: $1 Tage × $2 Std. × $3'],
 [/^Órabér: (.+) óra × (.+)$/,'Hourly wage: $1 h × $2','Stundenlohn: $1 Std. × $2'],
 [/^023 SFN pflichtig \(szabadság éjszakai pótléka, (\d+) nap\)$/,'023 SFN pflichtig (night surcharge for vacation, $1 days)','023 SFN pflichtig (Nachtzuschlag für Urlaub, $1 Tage)'],
 [/^003\/008 Spesen, adómentes \((\d+) nap × (.+)\)$/,'003/008 Spesen, tax-free ($1 days × $2)','003/008 Spesen, steuerfrei ($1 Tage × $2)'],
@@ -334,10 +339,14 @@ async function auth(reg){const u=$('#u').value.trim(),p=$('#p').value,e=reg?$('#
  if(!u||!p)return alert('Töltsd ki mindkét mezőt');
  let r;
  if(reg){if(!em(e))return alert('Adj meg érvényes e-mail címet.');
+  if(u.includes('@'))return alert('A felhasználónév nem tartalmazhat @ jelet.');
+  try{const{data:ex}=await sb.rpc('email_for_username',{u});if(ex)return alert('Ez a felhasználónév már foglalt.')}catch(x){}
   r=await sb.auth.signUp({email:e,password:p,options:{data:{username:u}}});
   if(r.error)return alert(r.error.message);
   if(!r.data.session)return alert('Erősítsd meg az e-mail címedet a levélben kapott linkkel, utána lépj be.')}
- else{r=await sb.auth.signInWithPassword({email:u.includes('@')?u.toLowerCase():mail(u),password:p});
+ else{let le=u.toLowerCase();
+  if(!u.includes('@')){try{const{data}=await sb.rpc('email_for_username',{u});le=data||mail(u)}catch(x){le=mail(u)}}
+  r=await sb.auth.signInWithPassword({email:le,password:p});
   if(r.error)return alert(r.error.message)}
  REG=false;
  await load(reg||!u.includes('@')?u:uname(r.data.user));
@@ -458,9 +467,10 @@ function mk(s){const{jsPDF}=window.jspdf,d=new jsPDF(),f=s.t=='t',A=x=>String(x?
 
 /* ---------- Bérszámfejtés (a havi jelenléti ívből számol; becslés a német szabályok szerint) ---------- */
 let BM=new Date().getMonth(),BY=new Date().getFullYear();
-const BD={kl:'I',kids:0,bl:'BY',kirche:1,kvz:2.69,hr:13.90,gl:13.71,sp:28,satnet:125,vh:0,satH:0};
+/* base = havi alapbér (bh órára), hr = minimálbér/óra: a bh feletti órák, valamint a szabadság/beteg napok (vh óra/nap) ezzel */
+const BD={kl:'I',kids:0,bl:'BY',kirche:1,kvz:2.69,hr:13.90,gl:13.71,sp:28,satnet:125,vh:8,satH:0,base:2550,bh:160};
 const BLS=[['BW','Baden-Württemberg'],['BY','Bayern'],['BE','Berlin'],['BB','Brandenburg'],['HB','Bremen'],['HH','Hamburg'],['HE','Hessen'],['MV','Mecklenburg-Vorpommern'],['NI','Niedersachsen'],['NW','Nordrhein-Westfalen'],['RP','Rheinland-Pfalz'],['SL','Saarland'],['SN','Sachsen'],['ST','Sachsen-Anhalt'],['SH','Schleswig-Holstein'],['TH','Thüringen']];
-const BNUM=['kids','kvz','hr','gl','sp','satnet','vh'],BBOOL=['kirche','satH'];
+const BNUM=['kids','kvz','hr','gl','sp','satnet','vh','base','bh'],BBOOL=['kirche','satH'];
 const bp=()=>({...BD,...(D.bp||{})});
 const num=v=>{const n=parseFloat(String(v??'').replace(',','.'));return isNaN(n)?0:n};
 const r2=v=>Math.round((v+Number.EPSILON)*100)/100;
@@ -558,20 +568,30 @@ function refAvg(){let s=0,c=0;
   for(let d=1;d<=n;d++){const w=sh.rows[d]||{};if(!(w.b&&w.e)||new Date(y,m,d).getDay()==6)continue;s+=dur(w)||0;c++}}
  return c?s/c:0}
 
-/* Ünnepnapon a szabadságot U-val kell jelölni (a cégnél így van), automatikus fizetett ünnepnap nincs. */
+/* Bérszámlálás:
+   - a ténylegesen ledolgozott órák (szombat nélkül, ha satH=0) időrendben töltik fel az alapbér óráit (bh, alapból 160),
+     az alapbér arányos: base/bh €/óra
+   - a bh feletti órák a minimálbérrel (hr) számolnak
+   - szabadság (U) és beteg (K) hétköznap: vh óra (alapból 8) × minimálbér
+   - ünnepnapon a szabadságot U-val kell jelölni (a cégnél így van), automatikus fizetett ünnepnap nincs */
 function calcB(){
  const P=bp(),n=new Date(BY,BM+1,0).getDate(),H=holidays(BY,P.bl),sh=D.sheets.find(s=>s.t=='p'&&s.y==BY&&s.m==BM),rows=sh?sh.rows:{},days=[];
  for(let d=1;d<=n;d++){const w=rows[d]||{},g=new Date(BY,BM,d).getDay(),worked=!!(w.b&&w.e);
   days.push({d,g,w,worked,mins:worked?dur(w):0,st:w.x||'',hol:H[BM+'-'+d]||''})}
  const pool=days.filter(x=>x.worked&&x.g!=6),cavg=pool.length?pool.reduce((a,x)=>a+x.mins,0)/pool.length:0,ravg=refAvg(),
   avgMin=P.vh>0?P.vh*60:(ravg||cavg||480),
-  avgSrc=P.vh>0?L3('beállított érték','set value','eingestellter Wert'):ravg?L3('előző 3 hónap átlaga','average of the previous 3 months','Durchschnitt der letzten 3 Monate'):cavg?L3('a hónap átlaga','average of this month','Durchschnitt dieses Monats'):L3('alapérték','default','Standardwert');
- let pm=0,sp=0,nSp=0,nSat=0,uD=0,nK=0,gr=0;const S5={n25:0,n40:0,s50:0,h125:0,h150:0};
+  avgSrc=P.vh>0?L3('beállított érték','set value','eingestellter Wert'):ravg?L3('előző 3 hónap átlaga','average of the previous 3 months','Durchschnitt der letzten 3 Monate'):cavg?L3('a hónap átlaga','average of this month','Durchschnitt dieses Monats'):L3('alapérték','default','Standardwert'),
+  bh=P.bh>0?P.bh:160,brate=P.base/bh;
+ let pm=0,sp=0,nSp=0,nSat=0,uD=0,nK=0,gr=0,cum=0,bsM=0,otM=0,bs=0,ot=0,hv=0;const S5={n25:0,n40:0,s50:0,h125:0,h150:0};
  for(const x of days){const wk=x.g>=1&&x.g<=5;let pmin=0;x.kind='';
   if(x.worked){x.kind='w';pmin=(x.g==6&&!P.satH)?0:x.mins}
   else if(wk&&x.st=='U'){x.kind='U';pmin=avgMin;uD++}
   else if(wk&&x.st=='K'){x.kind='K';pmin=avgMin;nK++}
-  x.pmin=pmin;pm+=pmin;x.gross=pmin/60*P.hr;gr+=x.gross;
+  x.pmin=pmin;pm+=pmin;
+  if(x.kind=='w'){const a=Math.max(0,Math.min(pmin,bh*60-cum)),b=pmin-a;cum+=pmin;bsM+=a;otM+=b;
+   const g1=a/60*brate,g2=b/60*P.hr;bs+=g1;ot+=g2;x.gross=g1+g2}
+  else{x.gross=pmin/60*P.hr;hv+=x.gross}
+  gr+=x.gross;
   x.sp=(x.worked&&x.g!=6)?P.sp:0;sp+=x.sp;if(x.sp)nSp++;
   x.sat=(x.worked&&x.g==6)?P.satnet:0;if(x.sat)nSat++;
   if(x.worked){const r=surch(BY,BM,x.d,x.w,H);for(const k in S5)S5[k]+=r[k]}}
@@ -580,7 +600,7 @@ function calcB(){
  const tx=taxes(SB,P),ded=tx.lst+tx.kst+tx.soli+tx.kv+tx.rv+tx.av+tx.pv,rt=SB>0?ded/SB:0;
  for(const x of days){x.net=x.gross*(1-rt)+x.sat;x.tot=x.net+x.sp}
  const gesamt=SB+sp+surT,netto=gesamt-ded,satT=nSat*P.satnet;
- return{P,days,sh,pm,gr,sfnP,SB,sp,nSp,nSat,uD,nK,nW:wc,avgSrc,S5,A,surT,tx,ded,gesamt,netto,satT,payout:netto+satT,avgMin,sumNet:days.reduce((a,x)=>a+x.net,0),sumTot:days.reduce((a,x)=>a+x.tot,0)}}
+ return{P,days,sh,pm,gr,bs,ot,hv,bsM,otM,sfnP,SB,sp,nSp,nSat,uD,nK,nW:wc,avgSrc,S5,A,surT,tx,ded,gesamt,netto,satT,payout:netto+satT,avgMin,sumNet:days.reduce((a,x)=>a+x.net,0),sumTot:days.reduce((a,x)=>a+x.tot,0)}}
 
 function payRes(){const c=calcB(),P=c.P,L=(t,v,b)=>`<div class="sm"><span>${t}</span><b>${v}</b></div>`;
  const rowsH=c.days.map(x=>{const lab=x.worked?fmt(x.mins):(x.kind=='U'?'U':x.kind=='K'?'K':x.st);
@@ -593,7 +613,9 @@ function payRes(){const c=calcB(),P=c.P,L=(t,v,b)=>`<div class="sm"><span>${t}</
  <small>★ ünnepnap (a kiválasztott Bundesland szerint). U szabadság (ünnepnapon is), K beteg: ezeken a napokon a hónap átlagos óraszámával fizetett. Szombat: fix nettó összeg, órabér nélkül. A napi nettó a havi levonások arányából számolt. Az éjszakai és a vasárnapi/ünnepi pótlék, valamint az SFN pflichtig csak lent adódik hozzá.</small></div>
  <div class="card"><h3>Havi összesítés (bérpapír szerint)</h3>
  <p><small>${L3(`Napok: munka ${c.nW} (ebből szombat ${c.nSat}), szabadság ${c.uD}, beteg ${c.nK}. Szabadság/beteg napi óraszáma: ${hh(c.avgMin)} (${c.avgSrc}).`,`Days: worked ${c.nW} (of which Saturday ${c.nSat}), vacation ${c.uD}, sick ${c.nK}. Hours per vacation/sick day: ${hh(c.avgMin)} (${c.avgSrc}).`,`Tage: gearbeitet ${c.nW} (davon Samstag ${c.nSat}), Urlaub ${c.uD}, krank ${c.nK}. Stunden pro Urlaubs-/Krankheitstag: ${hh(c.avgMin)} (${c.avgSrc}).`)}</small></p>
- ${L('Órabér: '+hh(c.pm)+' óra × '+Eu(P.hr),Eu(c.gr))}
+ ${L('Alapbér: '+hh(c.bsM)+' óra',Eu(c.bs))}
+ ${c.otM?L('Túlóra: '+hh(c.otM)+' óra × '+Eu(P.hr),Eu(c.ot)):''}
+ ${c.hv?L('Szabadság/beteg: '+(c.uD+c.nK)+' nap × '+hh(c.avgMin)+' óra × '+Eu(P.hr),Eu(c.hv)):''}
  ${c.sfnP?L('023 SFN pflichtig (szabadság éjszakai pótléka, '+c.uD+' nap)',Eu(c.sfnP)):''}
  ${L('<b>Steuer-/SV-Brutto</b>','<b>'+Eu(c.SB)+'</b>')}
  ${c.sp?L('003/008 Spesen, adómentes ('+c.nSp+' nap × '+Eu(P.sp)+')',Eu(c.sp)):''}
@@ -617,7 +639,7 @@ function ber(){const P=bp(),o=(a,s)=>a.map(([v,t])=>`<option value="${v}"${v==s?
  <label><br><input type="checkbox" ${P.kirche?'checked':''} onchange="setB('kirche',this.checked)"> Egyházi adó fizetése</label></div></div>
  <div id="pr">${payRes()}</div>
  <div class="card"><details><summary>Beállítások</summary><br><div class="gr">
- ${f('hr','Órabér € (minimálbér)')}${f('gl','Pótlékok alapórabére €')}${f('sp','Spesen €/nap (adómentes)')}${f('satnet','Szombat fix nettó €')}${f('kvz','KV Zusatzbeitrag %')}${f('vh','Szabadság/beteg nap órái (0 = a hónap átlaga)')}</div>
+ ${f('base','Alapbér € (havi)')}${f('bh','Alapbér óraszáma')}${f('hr','Órabér € (minimálbér)')}${f('gl','Pótlékok alapórabére €')}${f('sp','Spesen €/nap (adómentes)')}${f('satnet','Szombat fix nettó €')}${f('kvz','KV Zusatzbeitrag %')}${f('vh','Szabadság/beteg nap órái (0 = a hónap átlaga)')}</div>
  <p><label><input type="checkbox" ${P.satH?'checked':''} onchange="setB('satH',this.checked)"> A szombati órák is órabéresek (alapból: csak a fix összeg)</label></p>
  <small>Becslés. Alapok: Lohnsteuer a 2026-os BMF programablaufplan (§ 32a EStG tarifa, Vorsorgepauschale, Pauschbeträge) szerint, pótlékok a § 3b EStG szerint (éjszaka 20–06: 25%, éjfél előtt kezdett műszaknál 0–4 óra 40%, vasárnap 50%, ünnepnap 125%, 12.24. 14 órától, 12.25–26. és 05.01. 150%, 12.31. 14 órától 125%). A Kinderfreibetrag csak az egyházi adót és a Soli-t érinti, ezt nem számolja. A bérpapír a mérvadó.</small></details></div>`}
 function setB(k,v){D.bp={...(D.bp||{}),[k]:BNUM.includes(k)?num(v):BBOOL.includes(k)?(v?1:0):v};save();const o=$('#pr');if(o)o.innerHTML=payRes()}
